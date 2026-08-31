@@ -15,7 +15,7 @@ const TYPES = {
   '.svg': 'image/svg+xml',
 };
 
-createServer((req, res) => {
+const server = createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
   let pathname = decodeURIComponent(url.pathname);
   // Redirect to /web/ rather than rewriting, so the page's relative asset
@@ -40,6 +40,18 @@ createServer((req, res) => {
     'cache-control': 'no-cache',
   });
   createReadStream(target).pipe(res);
-}).listen(PORT, () => {
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(
+      `Port ${PORT} is already in use. Start on another port with:\n  PORT=8081 npm start`,
+    );
+    process.exit(1);
+  }
+  throw err;
+});
+
+server.listen(PORT, () => {
   console.log(`Deal Room running at http://localhost:${PORT}/`);
 });

@@ -22,7 +22,7 @@ the target loses its largest customer. Nothing is flavour text.
 
 ```bash
 npm install     # typescript and @types/node only; the game itself has no dependencies
-npm start       # builds, then serves at http://localhost:8080
+npm start       # builds, then serves at http://localhost:8080 (PORT=8081 to change)
 npm test        # 24 tests covering the rules engine
 npm run balance # plays 360 games and reports whether skill is rewarded
 ```

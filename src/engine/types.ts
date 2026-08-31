@@ -53,6 +53,10 @@ export interface MarketEnvironment {
 // ---------------------------------------------------------------------------
 
 export type Sector =
+  | 'Transport & Logistics'
+  | 'Leisure & Hospitality'
+  | 'Food & Beverage'
+  | 'Textiles & Apparel'
   | 'Technology'
   | 'Healthcare / Pharma'
   | 'Financial Services'
@@ -105,8 +109,14 @@ export interface AcquirerProfile {
   debtCapacity: number;
   /** Overlap with the target's market, in percent — drives HHI. */
   marketSharePct: number;
-  /** Sector the acquirer competes in; overlap raises antitrust risk. */
+  /** Primary sector, used for descriptive copy. */
   sector: Sector;
+  /**
+   * Sectors where the acquirer already holds the position above. A target
+   * outside this list produces only incidental overlap, which is what makes
+   * the regulatory phase turn on which company you chose to buy.
+   */
+  overlapSectors: Sector[];
 }
 
 // ---------------------------------------------------------------------------
@@ -645,6 +655,28 @@ export interface DefenseCard {
   reputationCost: number;
   /** Unocal proportionality: 0..1, higher is easier to defend in court. */
   proportionality: number;
+}
+
+// ---------------------------------------------------------------------------
+// Difficulty (NAMING.md — system defaults)
+// ---------------------------------------------------------------------------
+
+export type DifficultyTier = 'clean-team' | 'red-flag' | 'shutter-island';
+
+export interface DifficultyProfile {
+  id: DifficultyTier;
+  name: string;
+  summary: string;
+  disclosure: DisclosureStrategy;
+  /** Diligence Points granted for the engagement. */
+  diligenceBudget: number;
+  /** Multiplier on how hard the seller pushes back in every negotiation. */
+  sellerResistance: number;
+  /**
+   * True where the diligence report is itself unreliable regardless of who
+   * produced it — ground truth is unreachable before signing.
+   */
+  reportsCompromised: boolean;
 }
 
 // ---------------------------------------------------------------------------

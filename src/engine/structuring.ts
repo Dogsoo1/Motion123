@@ -51,7 +51,7 @@ export function analyseFinancing(params: {
     const cap = info.maxShare * Math.max(1, cashConsideration);
     if (amount > cap + 0.5) {
       errors.push(
-        `${info.name} is capped at ${Math.round(info.maxShare * 100)}% of the cash consideration ($${round(cap, 0)}M); you allocated $${round(amount, 0)}M.`,
+        `${info.name} is capped at ${Math.round(info.maxShare * 100)}% of the cash consideration (£${round(cap, 0)}M); you allocated £${round(amount, 0)}M.`,
       );
     }
     if (DEBT_SOURCES.includes(source)) {
@@ -61,27 +61,27 @@ export function analyseFinancing(params: {
     fragilityWeighted += amount * info.fragility;
   }
 
-  // Tolerance absorbs rounding across tranches; it is well below $1M of signal.
+  // Tolerance absorbs rounding across tranches; it is well below £1M of signal.
   const EPS = 0.05;
   const cashUsed = plan['cash-on-hand'] ?? 0;
   if (cashUsed > acquirer.cashOnHand + EPS) {
     errors.push(
-      `Cash on hand is $${acquirer.cashOnHand}M; you allocated $${round(cashUsed, 0)}M.`,
+      `Cash on hand is £${acquirer.cashOnHand}M; you allocated £${round(cashUsed, 0)}M.`,
     );
   }
   if (totalDebt > acquirer.debtCapacity + EPS) {
     errors.push(
-      `Debt capacity is $${acquirer.debtCapacity}M; your stack raises $${round(totalDebt, 0)}M.`,
+      `Debt capacity is £${acquirer.debtCapacity}M; your stack raises £${round(totalDebt, 0)}M.`,
     );
   }
 
   const shortfall = cashConsideration - totalRaised;
   if (Math.abs(shortfall) > Math.max(1, cashConsideration * 0.005)) {
     if (shortfall > 0) {
-      errors.push(`Financing is short by $${round(shortfall, 0)}M of the cash consideration.`);
+      errors.push(`Financing is short by £${round(shortfall, 0)}M of the cash consideration.`);
     } else {
       warnings.push(
-        `You have raised $${round(-shortfall, 0)}M more than the deal needs — that is carry you are paying for nothing.`,
+        `You have raised £${round(-shortfall, 0)}M more than the deal needs — that is carry you are paying for nothing.`,
       );
     }
   }
@@ -239,7 +239,8 @@ export function analyseStructure(
   return {
     sellerPriceDemandPct: round((tax.sellerPriceDemand + collarDemand + cvrDiscount) * 100, 2),
     buyerTaxBenefitPct: round(tax.buyerBenefit * 100, 2),
-    complexityCost: tax.complexityCost + (decision.structure === 'asset-purchase' ? 15 : 0),
+    // Expressed as a fraction of deal value; the caller multiplies through.
+    complexityCost: tax.complexityCost + (decision.structure === 'asset-purchase' ? 0.008 : 0),
     consentRisk: structure.consentRisk,
     liabilityAssumption: structure.liabilityAssumption,
     speed: structure.speed,

@@ -42,7 +42,7 @@ export function regulatoryView(ctx: Ctx): HTMLElement {
   const influence = draftValue<number>(ctx, 'influence', 0);
 
   const definition = MARKET_DEFINITIONS.find((d) => d.id === definitionId)!;
-  const sameSector = acquirer.sector === target.sector;
+  const sameSector = acquirer.overlapSectors.includes(target.sector);
   const acquirerShare = sameSector ? acquirer.marketSharePct : acquirer.marketSharePct * 0.15;
   const hhi = computeHhi({
     acquirerSharePct: acquirerShare,

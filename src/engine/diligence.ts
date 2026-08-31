@@ -134,17 +134,31 @@ export function emptyAllocation(): Record<DiligenceCategory, DiligenceDepth> {
   );
 }
 
+/** What the retained provider does to the fieldwork. */
+export interface ProviderCapability {
+  /** Chance a reached finding is nonetheless reported clean. */
+  missRate: number;
+  /** Whether the provider reads one slot deeper than the spend bought. */
+  reachesDeeper: boolean;
+}
+
 /**
  * Resolve a diligence allocation against the data room.
  *
  * Expert Analysis (4 DP) buys the full reveal plus a "risk assessment"
  * modifier, which lands as extra negotiating leverage on the findings in that
  * category (GDD §3.2).
+ *
+ * A provider's miss rate is applied silently. A missed finding is simply not
+ * revealed — the result is indistinguishable from a category that was clean,
+ * which is the whole point of the provider choice. The card stays in the data
+ * room and surfaces after closing as a liability nobody wrote down.
  */
 export function runDiligence(
   room: DataRoom,
   allocation: Record<DiligenceCategory, DiligenceDepth>,
   rng: Rng,
+  provider: ProviderCapability = { missRate: 0, reachesDeeper: false },
 ): DiligenceResult {
   const revealed: DataRoomCard[] = [];
   const missed: DataRoomCard[] = [];
@@ -154,12 +168,20 @@ export function runDiligence(
   for (const category of DILIGENCE_CATEGORIES) {
     const depth = (allocation[category] ?? 0) as DiligenceDepth;
     if (depth === 4) expertCategories.push(category);
-    const reach = slotsRevealed(depth);
+    const reach = slotsRevealed(depth) + (depth > 0 && provider.reachesDeeper ? 1 : 0);
 
     for (const slot of room[category]) {
       const alreadyOpen = slot.revealed;
-      const nowOpen = alreadyOpen || slot.depth < reach;
-      if (nowOpen) {
+      const reached = slot.depth < reach;
+
+      // A finding the fieldwork reached can still be written up as clean.
+      const missedByProvider =
+        !alreadyOpen &&
+        reached &&
+        slot.card.severity !== 'green' &&
+        rng.next() < provider.missRate;
+
+      if ((alreadyOpen || reached) && !missedByProvider) {
         if (!alreadyOpen) {
           slot.revealed = true;
           slot.revealedBy = depth === 4 ? 'expert' : 'diligence';

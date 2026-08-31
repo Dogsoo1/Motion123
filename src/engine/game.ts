@@ -1,4 +1,19 @@
 import {
+  COMPROMISED_REPORT_MISS_RATE,
+  DESTIN_CONRAD,
+  DESTIN_CONRAD_REPS_BONUS,
+  DIFFICULTY_PROFILES,
+  DILIGENCE_PROVIDERS,
+  LINETTI,
+  LINETTI_LEAK_MULTIPLIER,
+  LINETTI_SELF_PROMOTION_RATE,
+  BELLION,
+  CASE_OFFICER,
+  SELLER_CHAIR,
+  SELLER_NEGOTIATOR,
+  type DiligenceProviderId,
+} from './content/advisers.js';
+import {
   chooseDisclosureStrategy,
   chooseProcessType,
   chooseRegulatorPosture,
@@ -45,7 +60,6 @@ import {
 import { clamp, round } from './rng.js';
 import { scoreAll } from './scoring.js';
 import {
-  SCREENING_FEE,
   adjustReputation,
   advance,
   createGame,
@@ -71,6 +85,7 @@ import {
   runDcfAnalysis,
   runPrecedentAnalysis,
   synthesise,
+  unaffectedEquityValue,
 } from './valuation.js';
 import {
   DILIGENCE_CATEGORIES,
@@ -89,9 +104,34 @@ export { createGame };
 export type { GameState, NewGameOptions };
 
 /** Costs, in $M, of each analytical method (GDD §6 Phase 1 Buyer Actions). */
-export const VALUATION_COSTS = { comps: 3, precedent: 7, dcf: 14 } as const;
+export const VALUATION_COST_PCT = { comps: 0.0025, precedent: 0.005, dcf: 0.009 } as const;
 /** Cash cost per Diligence Point, $M. */
-export const DP_CASH_COST = 1.6;
+export const DP_CASH_COST_PCT = 0.0018;
+/** Retainers the buyer may take on before diligence opens. */
+export const AVAILABLE_RETAINERS = [DESTIN_CONRAD, LINETTI];
+
+/**
+ * The value every fee is struck against. Before a target is chosen this is the
+ * median of what is on the market; afterwards it is the target itself.
+ */
+export function referenceValue(state: GameState): number {
+  if (state.target) return Math.max(20, unaffectedEquityValue(state.target));
+  const values = state.marketTargets.map((t) => unaffectedEquityValue(t)).sort((a, b) => a - b);
+  return Math.max(20, values[Math.floor(values.length / 2)] ?? 100);
+}
+
+/** Fee for screening one target (GDD §6 Phase 1). */
+export function screeningFee(state: GameState): number {
+  return round(referenceValue(state) * 0.0012, 2);
+}
+
+export function valuationCost(state: GameState, method: keyof typeof VALUATION_COST_PCT): number {
+  return round(referenceValue(state) * VALUATION_COST_PCT[method], 2);
+}
+
+export function dpCashCost(state: GameState): number {
+  return round(referenceValue(state) * DP_CASH_COST_PCT, 3);
+}
 /** Advisory fee as a fraction of deal value, paid on closing. */
 export const ADVISORY_FEE_RATE = 0.012;
 
@@ -104,7 +144,12 @@ export type GameAction =
   | { type: 'advance' }
   | { type: 'submit-ioi'; ioi: IndicationOfInterest }
   | { type: 'loi-respond'; response: 'accept' | 'counter' | 'walk'; terms?: LoiTerms }
-  | { type: 'allocate-diligence'; allocation: Record<DiligenceCategory, DiligenceDepth> }
+  | { type: 'retain'; retainerId: string; on: boolean }
+  | {
+      type: 'allocate-diligence';
+      allocation: Record<DiligenceCategory, DiligenceDepth>;
+      provider: DiligenceProviderId;
+    }
   | { type: 'reprice'; requestedCutPct: number; walk: boolean }
   | { type: 'set-structure'; decision: StructuringDecision }
   | {
@@ -136,6 +181,12 @@ export function applyAction(state: GameState, action: GameAction): ActionResult 
     return { ok: false, error: 'The game is over.' };
   }
 
+  const result = dispatch(state, action);
+  if (result.ok) checkLongStop(state);
+  return result;
+}
+
+function dispatch(state: GameState, action: GameAction): ActionResult {
   switch (action.type) {
     case 'screen-target':
       return screenTarget(state, action.targetId);
@@ -153,8 +204,10 @@ export function applyAction(state: GameState, action: GameAction): ActionResult 
       return submitIoi(state, action.ioi);
     case 'loi-respond':
       return loiRespond(state, action.response, action.terms);
+    case 'retain':
+      return setRetainer(state, action.retainerId, action.on);
     case 'allocate-diligence':
-      return allocateDiligence(state, action.allocation);
+      return allocateDiligence(state, action.allocation, action.provider);
     case 'reprice':
       return reprice(state, action.requestedCutPct, action.walk);
     case 'set-structure':
@@ -191,7 +244,7 @@ function screenTarget(state: GameState, targetId: string): ActionResult {
   if (!target) return { ok: false, error: 'That target is not in the market.' };
 
   state.screened.push(targetId);
-  spend(state, SCREENING_FEE, `screening fee for ${target.name}`);
+  spend(state, screeningFee(state), `screening fee for ${target.name}`);
   state.clock += 1;
   return { ok: true };
 }
@@ -217,10 +270,23 @@ function selectTarget(state: GameState, targetId: string): ActionResult {
     const posture = chooseRegulatorPosture(state, rng);
     state.competingBidders = createCompetingBidders(state, rng);
 
+    if (state.processType === 'auction' || state.processType === 'targeted') {
+      state.loiRoundsRemaining -= BELLION.timetablePressure;
+      pushLog(state, {
+        phase: 1,
+        role: 'seller',
+        text: `${BELLION.name} has been appointed to run the process.`,
+        detail: [
+          'They control the flow of information and the timetable. Expect a shorter road to a signed letter than you would like.',
+        ],
+        tone: 'warning',
+      });
+    }
+
     pushLog(state, {
       phase: 1,
       role: 'seller',
-      text: `The board will run a ${state.processType!.replace('-', ' ')} process.`,
+      text: `${SELLER_CHAIR}: the board will run a ${state.processType!.replace('-', ' ')} process.`,
       detail:
         state.processType === 'auction'
           ? ['A broad process maximises price competition but takes longer and leaks more.']
@@ -282,12 +348,12 @@ function runComps(state: GameState, compIds: string[]): ActionResult {
 
   const range = withRng(state, (rng) => runCompsAnalysis(target, state.market, selected, rng));
   state.valuationRanges.push(range);
-  spend(state, VALUATION_COSTS.comps, 'comparable companies analysis');
+  spend(state, valuationCost(state, 'comps'), 'comparable companies analysis');
   state.clock += 1;
   pushLog(state, {
     phase: 1,
     role: 'banker',
-    text: `Comps: $${range.low}M – $${range.high}M (mid $${range.mid}M)`,
+    text: `Comps: £${range.low}M – £${range.high}M (mid £${range.mid}M)`,
     detail: range.notes,
   });
   return { ok: true };
@@ -306,12 +372,12 @@ function runPrecedent(state: GameState, ids: string[]): ActionResult {
     runPrecedentAnalysis(target, state.market, selected, rng),
   );
   state.valuationRanges.push(range);
-  spend(state, VALUATION_COSTS.precedent, 'precedent transaction analysis');
+  spend(state, valuationCost(state, 'precedent'), 'precedent transaction analysis');
   state.clock += 2;
   pushLog(state, {
     phase: 1,
     role: 'banker',
-    text: `Precedents: $${range.low}M – $${range.high}M (mid $${range.mid}M)`,
+    text: `Precedents: £${range.low}M – £${range.high}M (mid £${range.mid}M)`,
     detail: range.notes,
   });
   return { ok: true };
@@ -331,12 +397,12 @@ function runDcf(state: GameState, assumptions: DcfAssumptions): ActionResult {
   }
   state.dcfAssumptions = assumptions;
   state.valuationRanges.push(range);
-  spend(state, VALUATION_COSTS.dcf, 'discounted cash flow analysis');
+  spend(state, valuationCost(state, 'dcf'), 'discounted cash flow analysis');
   state.clock += 3;
   pushLog(state, {
     phase: 1,
     role: 'banker',
-    text: `DCF: $${range.low}M – $${range.high}M (mid $${range.mid}M)`,
+    text: `DCF: £${range.low}M – £${range.high}M (mid £${range.mid}M)`,
     detail: range.notes,
   });
   return { ok: true };
@@ -360,9 +426,9 @@ function advancePhase(state: GameState): ActionResult {
       pushLog(state, {
         phase: 1,
         role: 'banker',
-        text: `Recommended range: $${state.valuation.recommendedLow}M – $${state.valuation.recommendedHigh}M`,
+        text: `Recommended range: £${state.valuation.recommendedLow}M – £${state.valuation.recommendedHigh}M`,
         detail: [
-          `Unaffected equity value is $${round(targetUnaffected(state), 0)}M.`,
+          `Unaffected equity value is £${round(targetUnaffected(state), 0)}M.`,
           `${state.valuationRanges.length} of 3 methodologies used.`,
         ],
       });
@@ -428,13 +494,13 @@ function submitIoi(state: GameState, ioi: IndicationOfInterest): ActionResult {
     round: 1,
     from: 'buyer',
     terms: opening,
-    commentary: `Indication of interest at $${round(opening.price, 0)}M, ${ioi.consideration}.`,
+    commentary: `Indication of interest at £${round(opening.price, 0)}M, ${ioi.consideration}.`,
   });
 
   pushLog(state, {
     phase: 2,
     role: 'buyer',
-    text: `IOI submitted: $${ioi.priceLow}M – $${ioi.priceHigh}M, ${ioi.consideration}.`,
+    text: `IOI submitted: £${ioi.priceLow}M – £${ioi.priceHigh}M, ${ioi.consideration}.`,
     detail: [
       `Exclusivity requested: ${ioi.exclusivityDays} days`,
       `Break-up fee: ${ioi.breakFeePct}%; deposit: ${ioi.depositPct}%`,
@@ -461,7 +527,7 @@ function submitIoi(state: GameState, ioi: IndicationOfInterest): ActionResult {
         pushLog(state, {
           phase: 2,
           role: 'system',
-          text: `${bidder.name} is understood to be bidding around $${bidder.bid}M.`,
+          text: `${bidder.name} is understood to be bidding around £${bidder.bid}M.`,
           tone: 'warning',
         });
       }
@@ -491,7 +557,7 @@ function sellerRespondToLoi(state: GameState, offer: LoiTerms): ActionResult {
     pushLog(state, {
       phase: 2,
       role: 'seller',
-      text: `The board has approved the letter of intent at $${round(offer.price, 0)}M.`,
+      text: `${SELLER_CHAIR}: the board has approved the letter of intent at £${round(offer.price, 0)}M.`,
       tone: 'good',
     });
     return signLoi(state);
@@ -520,6 +586,8 @@ function sellerRespondToLoi(state: GameState, offer: LoiTerms): ActionResult {
     return signLoi(state);
   }
 
+  const bellionEngaged =
+    state.processType === 'auction' || state.processType === 'targeted';
   const counter = withRng(state, (rng) =>
     sellerCounter({
       buyerOffer: offer,
@@ -531,6 +599,12 @@ function sellerRespondToLoi(state: GameState, offer: LoiTerms): ActionResult {
     }),
   );
 
+  if (bellionEngaged) {
+    counter.exclusivityDays = Math.round(
+      counter.exclusivityDays * BELLION.exclusivityGrantRate,
+    );
+  }
+
   const activeBidders = state.competingBidders.filter((b) => b.active).length;
   state.loiExchanges.push({
     round: state.loiExchanges.length + 1,
@@ -538,14 +612,14 @@ function sellerRespondToLoi(state: GameState, offer: LoiTerms): ActionResult {
     terms: counter,
     commentary:
       activeBidders > 0
-        ? `We have interest at higher levels. The board can recommend $${round(counter.price, 0)}M.`
-        : `The board's view of value is $${round(counter.price, 0)}M. We are prepared to move on the other terms.`,
+        ? `We have interest at higher levels. The board can recommend £${round(counter.price, 0)}M.`
+        : `The board's view of value is £${round(counter.price, 0)}M. We are prepared to move on the other terms.`,
   });
 
   pushLog(state, {
     phase: 2,
     role: 'seller',
-    text: `Counter at $${round(counter.price, 0)}M.`,
+    text: `${SELLER_NEGOTIATOR} counters at £${round(counter.price, 0)}M.`,
     detail: [
       `Exclusivity: ${counter.exclusivityDays} days`,
       `Break-up fee: ${counter.breakFeePct}%`,
@@ -580,7 +654,7 @@ function loiRespond(
     pushLog(state, {
       phase: 2,
       role: 'buyer',
-      text: `Accepted the seller's terms at $${round(last.terms.price, 0)}M.`,
+      text: `Accepted the seller's terms at £${round(last.terms.price, 0)}M.`,
     });
     return signLoi(state);
   }
@@ -591,12 +665,12 @@ function loiRespond(
     round: state.loiExchanges.length + 1,
     from: 'buyer',
     terms,
-    commentary: `Counter at $${round(terms.price, 0)}M.`,
+    commentary: `Counter at £${round(terms.price, 0)}M.`,
   });
   pushLog(state, {
     phase: 2,
     role: 'buyer',
-    text: `Counter at $${round(terms.price, 0)}M.`,
+    text: `Counter at £${round(terms.price, 0)}M.`,
   });
   return sellerRespondToLoi(state, terms);
 }
@@ -630,12 +704,31 @@ function signLoi(state: GameState): ActionResult {
 // ---------------------------------------------------------------------------
 
 export function diligenceBudget(state: GameState): number {
-  return state.scenario.diligenceBudget ?? 12;
+  return state.scenario.diligenceBudget ?? DIFFICULTY_PROFILES[state.difficulty].diligenceBudget;
+}
+
+function setRetainer(state: GameState, retainerId: string, on: boolean): ActionResult {
+  if (state.step !== 'diligence-allocation') {
+    return { ok: false, error: 'Retainers are appointed before the fieldwork starts.' };
+  }
+  const retainer = AVAILABLE_RETAINERS.find((r) => r.id === retainerId);
+  if (!retainer) return { ok: false, error: 'No such adviser.' };
+  const held = state.retainers.includes(retainerId);
+  if (on === held) return { ok: true };
+
+  if (on) {
+    state.retainers.push(retainerId);
+    spend(state, round(referenceValue(state) * retainer.feePct, 2), `${retainer.name} retainer`);
+  } else {
+    state.retainers = state.retainers.filter((id) => id !== retainerId);
+  }
+  return { ok: true };
 }
 
 function allocateDiligence(
   state: GameState,
   allocation: Record<DiligenceCategory, DiligenceDepth>,
+  providerId: DiligenceProviderId,
 ): ActionResult {
   if (state.step !== 'diligence-allocation') {
     return { ok: false, error: 'Diligence is not open.' };
@@ -648,15 +741,36 @@ function allocateDiligence(
   }
   if (!state.dataRoom) return { ok: false, error: 'No data room.' };
 
-  const result = withRng(state, (rng) => runDiligence(state.dataRoom!, full, rng));
+  const provider = DILIGENCE_PROVIDERS[providerId];
+  if (!provider) return { ok: false, error: 'No such provider.' };
+  state.diligenceProvider = providerId;
+
+  // Where the reports themselves are compromised, no provider reaches truth.
+  const tier = DIFFICULTY_PROFILES[state.difficulty];
+  const missRate = tier.reportsCompromised
+    ? Math.max(provider.missRate, COMPROMISED_REPORT_MISS_RATE)
+    : provider.missRate;
+
+  const result = withRng(state, (rng) =>
+    runDiligence(state.dataRoom!, full, rng, {
+      missRate,
+      reachesDeeper: provider.reachesDeeper,
+    }),
+  );
   state.diligence = result;
-  spend(state, cost * DP_CASH_COST, `diligence fieldwork (${cost} DP)`);
-  state.clock += Math.ceil(cost / 3);
+  const dealScale = referenceValue(state);
+  spend(state, round(dealScale * provider.feePct, 2), `${provider.name} retainer`);
+  spend(
+    state,
+    round(cost * dpCashCost(state) * provider.costPerPoint, 2),
+    `diligence fieldwork (${cost} DP)`,
+  );
+  state.clock += Math.ceil(cost / 3) + provider.timetableCost;
 
   pushLog(state, {
     phase: 3,
     role: 'buyer',
-    text: `Diligence complete: ${cost} of ${budget} DP deployed.`,
+    text: `${provider.name} reports: ${cost} of ${budget} DP deployed.`,
     detail: DILIGENCE_CATEGORIES.filter((c) => full[c] > 0).map(
       (c) => `${c}: ${full[c]} DP`,
     ),
@@ -673,8 +787,9 @@ function allocateDiligence(
   }
 
   // A leak or whistleblower can surface something the buyer did not pay to find.
+  const leakMultiplier = state.retainers.includes(LINETTI.id) ? LINETTI_LEAK_MULTIPLIER : 1;
   withRng(state, (rng) => {
-    if (rng.bool(0.22 + state.market.volatility * 0.2)) {
+    if (rng.bool((0.22 + state.market.volatility * 0.2) * leakMultiplier)) {
       const card = revealRandomHidden(state.dataRoom!, rng);
       if (card) {
         pushLog(state, {
@@ -700,6 +815,25 @@ function allocateDiligence(
       }
     }
   });
+
+  // Linetti runs its own profile alongside yours, and a raised profile draws
+  // exactly the attention a live process does not need.
+  if (state.retainers.includes(LINETTI.id)) {
+    withRng(state, (rng) => {
+      if (rng.bool(LINETTI_SELF_PROMOTION_RATE) && state.competingBidders.every((b) => !b.active)) {
+        const revived = state.competingBidders[0];
+        if (revived) {
+          revived.active = true;
+          pushLog(state, {
+            phase: 3,
+            role: 'system',
+            text: `${LINETTI.name} placed a profile piece. ${revived.name} has re-entered the process.`,
+            tone: 'bad',
+          });
+        }
+      }
+    });
+  }
 
   const penalty = burialPenalty(state.disclosureStrategy ?? 'selective', state.diligence!);
   if (penalty !== 0) {
@@ -764,7 +898,7 @@ function reprice(state: GameState, requestedCutPct: number, walk: boolean): Acti
   if (sellerWalks) {
     terminate(
       state,
-      `The seller terminated rather than accept a ${round(requestedCutPct, 1)}% reduction. Their reserve was $${expectations.reserve}M.`,
+      `The seller terminated rather than accept a ${round(requestedCutPct, 1)}% reduction. Their reserve was £${expectations.reserve}M.`,
     );
     finaliseScores(state);
     return { ok: true };
@@ -786,7 +920,7 @@ function reprice(state: GameState, requestedCutPct: number, walk: boolean): Acti
   pushLog(state, {
     phase: 3,
     role: 'system',
-    text: `Price adjusted to $${newPrice}M (${round(agreedCut, 2)}% reduction).`,
+    text: `Price adjusted to £${newPrice}M (${round(agreedCut, 2)}% reduction).`,
     tone: agreedCut > 0 ? 'good' : 'neutral',
   });
 
@@ -831,14 +965,14 @@ function setStructure(state: GameState, decision: StructuringDecision): ActionRe
     pushLog(state, {
       phase: 4,
       role: 'seller',
-      text: `Price increased by $${uplift}M to compensate for the tax treatment.`,
-      detail: [`${structureAnalysis.sellerPriceDemandPct}% uplift on a $${round(price, 0)}M deal.`],
+      text: `Price increased by £${uplift}M to compensate for the tax treatment.`,
+      detail: [`${structureAnalysis.sellerPriceDemandPct}% uplift on a £${round(price, 0)}M deal.`],
       tone: 'bad',
     });
   }
 
   if (structureAnalysis.complexityCost > 0) {
-    spend(state, structureAnalysis.complexityCost, 'structuring and tax advisory');
+    spend(state, round(price * structureAnalysis.complexityCost, 2), 'structuring and tax advisory');
   }
 
   state.clock += Math.round(structureAnalysis.speed * 2);
@@ -848,8 +982,8 @@ function setStructure(state: GameState, decision: StructuringDecision): ActionRe
     role: 'buyer',
     text: `Structure set: ${decision.structure.replace(/-/g, ' ')}, ${Math.round(decision.cashPct * 100)}% cash, ${decision.tax}.`,
     detail: [
-      `Financing: $${financingAnalysis.totalDebt}M debt at ${financingAnalysis.blendedRateBps}bps, ${financingAnalysis.leverageTurns}x leverage.`,
-      `Equity cheque: $${financingAnalysis.equityCheck}M.`,
+      `Financing: £${financingAnalysis.totalDebt}M debt at ${financingAnalysis.blendedRateBps}bps, ${financingAnalysis.leverageTurns}x leverage.`,
+      `Equity cheque: £${financingAnalysis.equityCheck}M.`,
       ...financingAnalysis.warnings,
     ],
   });
@@ -887,8 +1021,11 @@ function doNegotiateAgreement(
       indemnity: round(base * rng.float(0.9, 1.25), 2),
       conditions: round(base * rng.float(0.8, 1.1), 2),
     };
+    const counselBonus = state.retainers.includes(DESTIN_CONRAD.id)
+      ? DESTIN_CONRAD_REPS_BONUS
+      : 0;
     return negotiateAgreement({
-      pushes,
+      pushes: { ...pushes, reps: pushes.reps + counselBonus },
       sellerResistance: resistance,
       leverage,
       specialIndemnityRequests: specialIndemnities,
@@ -982,7 +1119,7 @@ function doRegulatory(
   pushLog(state, {
     phase: 6,
     role: 'regulator',
-    text: `${outcome.intensity.replace(/-/g, ' ')} — ${outcome.cleared ? 'deal may proceed' : 'deal blocked'}`,
+    text: `${CASE_OFFICER}: ${outcome.intensity.replace(/-/g, ' ')} — ${outcome.cleared ? 'deal may proceed' : 'deal blocked'}`,
     detail: outcome.narrative,
     tone: outcome.cleared ? 'good' : 'bad',
   });
@@ -1131,7 +1268,7 @@ function closeAndIntegrate(
       phase: 7,
       role: 'system',
       text: `Undiscovered liability surfaced: ${card.title}`,
-      detail: [card.body, `Loss of $${loss}M. Whether you recover it is now a contract question.`],
+      detail: [card.body, `Loss of £${loss}M. Whether you recover it is now a contract question.`],
       tone: 'bad',
     });
   }
@@ -1164,7 +1301,7 @@ function closeAndIntegrate(
         role: 'system',
         text: claim.barred
           ? `Claim barred: ${claim.source}`
-          : `Recovered $${claim.recovered}M of $${claim.grossLoss}M — ${claim.source}`,
+          : `Recovered £${claim.recovered}M of £${claim.grossLoss}M — ${claim.source}`,
         detail: claim.barReason ? [claim.barReason] : undefined,
         tone: claim.barred ? 'bad' : 'good',
       });
@@ -1196,7 +1333,7 @@ function closeAndIntegrate(
   state.players.banker.fees = advisoryFee;
 
   narrative.push(
-    `Closed at $${price}M. Realised value of $${realisedValue}M against a total cost of $${totalCost}M.`,
+    `Closed at £${price}M. Realised value of £${realisedValue}M against a total cost of £${totalCost}M.`,
   );
 
   state.closing = {
@@ -1214,12 +1351,12 @@ function closeAndIntegrate(
   pushLog(state, {
     phase: 7,
     role: 'system',
-    text: `Deal closed at $${price}M.`,
+    text: `Deal closed at £${price}M.`,
     detail: [
-      `Realised value: $${realisedValue}M`,
-      `Total cost including fees and carry: $${totalCost}M`,
-      `Working capital true-up: ${wcAdjustment >= 0 ? '+' : ''}$${wcAdjustment}M`,
-      `Indemnity recovered: $${recoveredTotal}M of $${round(
+      `Realised value: £${realisedValue}M`,
+      `Total cost including fees and carry: £${totalCost}M`,
+      `Working capital true-up: ${wcAdjustment >= 0 ? '+' : ''}£${wcAdjustment}M`,
+      `Indemnity recovered: £${recoveredTotal}M of £${round(
         claims.reduce((s, c) => s + c.grossLoss, 0),
         1,
       )}M claimed`,
@@ -1231,6 +1368,46 @@ function closeAndIntegrate(
   advance(state, 8, 'scoring');
   finaliseScores(state);
   return { ok: true };
+}
+
+/**
+ * The long stop date. Once the clock passes it, either party may terminate —
+ * and a seller with other options usually does.
+ */
+function checkLongStop(state: GameState): boolean {
+  if (state.status !== 'active') return false;
+  if (state.clock <= state.longStopRounds) return false;
+
+  const overrun = state.clock - state.longStopRounds;
+  const sellerWalks = withRng(state, (rng) => rng.bool(clamp(0.25 + overrun * 0.12, 0, 0.9)));
+
+  pushLog(state, {
+    phase: state.phase,
+    role: 'system',
+    text: `Long stop date passed (${state.longStopDate}).`,
+    detail: [
+      `The timetable has run ${overrun} round${overrun === 1 ? '' : 's'} beyond the outside date. Both parties are now free to walk.`,
+    ],
+    tone: 'bad',
+  });
+
+  if (sellerWalks) {
+    terminate(
+      state,
+      `The long stop date passed on ${state.longStopDate} and the seller terminated rather than extend.`,
+    );
+    finaliseScores(state);
+    return true;
+  }
+
+  pushLog(state, {
+    phase: state.phase,
+    role: 'seller',
+    text: `${SELLER_CHAIR}: the board will extend the outside date. Once.`,
+    tone: 'warning',
+  });
+  state.longStopRounds += 4;
+  return false;
 }
 
 function finaliseScores(state: GameState): void {

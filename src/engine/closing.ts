@@ -232,11 +232,11 @@ export function resolveClaim(params: {
   const basketAmount = (indemnity.basketPct / 100) * dealValue;
   let claimable: number;
   if (special) {
-    // Specific indemnities are typically dollar-one, outside the basket.
+    // Specific indemnities are typically pound-one, outside the basket.
     claimable = params.grossLoss;
   } else if (params.grossLoss <= basketAmount) {
     return bar(
-      `Loss of $${round(params.grossLoss, 1)}M is below the $${round(basketAmount, 1)}M basket.`,
+      `Loss of £${round(params.grossLoss, 1)}M is below the £${round(basketAmount, 1)}M basket.`,
     );
   } else {
     claimable =
@@ -249,7 +249,7 @@ export function resolveClaim(params: {
   let recovered = Math.min(claimable, capHeadroom);
   let barReason: string | undefined;
   if (recovered < claimable) {
-    barReason = `Capped at ${indemnity.capPct}% of deal value ($${round(capAmount, 1)}M).`;
+    barReason = `Capped at ${indemnity.capPct}% of deal value (£${round(capAmount, 1)}M).`;
   }
 
   // Practical collection: the escrow is the money you can actually reach.
@@ -276,7 +276,7 @@ export function resolveClaim(params: {
     const insured = clamp(uncovered - retention, 0, policyLimit);
     if (insured > 0) {
       recovered += insured;
-      barReason = `${barReason ?? ''} R&W insurance responded for $${round(insured, 1)}M.`.trim();
+      barReason = `${barReason ?? ''} R&W insurance responded for £${round(insured, 1)}M.`.trim();
     }
   }
 

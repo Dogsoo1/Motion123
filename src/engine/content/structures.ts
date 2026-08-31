@@ -180,7 +180,7 @@ export const TAX_STRUCTURES: Record<TaxStructure, TaxStructureInfo> = {
       'Tax deferral for the target’s holders in exchange for taking your paper. Continuity-of-interest rules mean this only works with real stock consideration.',
     sellerPriceDemand: -0.02,
     buyerBenefit: 0,
-    complexityCost: 8,
+    complexityCost: 0.004,
     requiresStockConsideration: true,
   },
   'election-338': {
@@ -190,7 +190,7 @@ export const TAX_STRUCTURES: Record<TaxStructure, TaxStructureInfo> = {
       'Treat the stock purchase as an asset purchase for tax. You get a stepped-up basis; the seller gets a bigger tax bill and will price it in.',
     sellerPriceDemand: 0.055,
     buyerBenefit: 0.07,
-    complexityCost: 12,
+    complexityCost: 0.006,
     requiresStockConsideration: false,
   },
   'cross-border': {
@@ -200,7 +200,7 @@ export const TAX_STRUCTURES: Record<TaxStructure, TaxStructureInfo> = {
       'Treaty-driven holding structure with GILTI and BEAT consequences. Real savings, real complexity, real regulatory attention.',
     sellerPriceDemand: 0.01,
     buyerBenefit: 0.045,
-    complexityCost: 25,
+    complexityCost: 0.012,
     requiresStockConsideration: false,
   },
 };

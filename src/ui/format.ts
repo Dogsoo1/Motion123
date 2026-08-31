@@ -1,16 +1,16 @@
-/** Presentation helpers. Money is in $M throughout the engine. */
+/** Presentation helpers. Money is in £M throughout the engine. */
 
 export function money(value: number, decimals = 0): string {
   if (!Number.isFinite(value)) return '—';
   const abs = Math.abs(value);
   if (abs >= 1000) {
-    return `$${(value / 1000).toFixed(2)}B`;
+    return `£${(value / 1000).toFixed(2)}B`;
   }
-  return `$${value.toFixed(decimals)}M`;
+  return `£${value.toFixed(decimals)}M`;
 }
 
 export function moneyExact(value: number): string {
-  return `$${value.toFixed(1)}M`;
+  return `£${value.toFixed(1)}M`;
 }
 
 export function pct(value: number, decimals = 1): string {

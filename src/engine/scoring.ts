@@ -34,7 +34,7 @@ export function scoreBuyer(state: GameState): RoleScore {
         'Deal Value Created',
         20 + (created / scale) * 20,
         40,
-        `Realised $${round(state.closing.realisedValue, 0)}M against total cost of $${round(state.closing.totalCost, 0)}M.`,
+        `Realised £${round(state.closing.realisedValue, 0)}M against total cost of £${round(state.closing.totalCost, 0)}M.`,
       ),
     );
   } else if (state.status === 'terminated' && intrinsic > 0 && price > intrinsic * 1.05) {
@@ -134,7 +134,7 @@ export function scoreSeller(state: GameState): RoleScore {
         'Price Achieved',
         18 + ((price - intrinsic) / Math.max(1, intrinsic * 0.3)) * 22,
         40,
-        `Cleared at $${round(price, 0)}M — a ${premium}% premium to the unaffected price of $${round(unaffected, 0)}M.`,
+        `Cleared at £${round(price, 0)}M — a ${premium}% premium to the unaffected price of £${round(unaffected, 0)}M.`,
       ),
     );
   } else {
@@ -205,7 +205,7 @@ export function scoreBanker(state: GameState): RoleScore {
       closed ? clamp((state.bankerFees / Math.max(1, price * 0.012)) * 24, 0, 30) : 0,
       30,
       closed
-        ? `$${round(state.bankerFees, 1)}M in advisory fees on a $${round(price, 0)}M transaction.`
+        ? `£${round(state.bankerFees, 1)}M in advisory fees on a £${round(price, 0)}M transaction.`
         : 'No closing, no fee. That is the whole incentive structure in one line.',
     ),
   );
@@ -348,14 +348,14 @@ export function scoreObjective(state: GameState, role: RoleId): ScoreLine {
     case 'obj-empire':
       return award(
         closed && price > 4000,
-        `Deal value of $${round(price, 0)}M.`,
+        `Deal value of £${round(price, 0)}M.`,
         closed ? clamp(price / 4000, 0, 1) * 9 : 0,
       );
     case 'obj-discipline':
       return award(
         (closed && price < intrinsic) || (!closed && price > intrinsic),
         closed
-          ? `Paid $${round(price, 0)}M against intrinsic value of $${round(intrinsic, 0)}M.`
+          ? `Paid £${round(price, 0)}M against intrinsic value of £${round(intrinsic, 0)}M.`
           : 'Declined to overpay.',
       );
     case 'obj-protection': {
@@ -389,7 +389,7 @@ export function scoreObjective(state: GameState, role: RoleId): ScoreLine {
     case 'obj-fees':
       return award(
         closed && state.bankerFees > price * 0.011,
-        `$${round(state.bankerFees, 1)}M earned.`,
+        `£${round(state.bankerFees, 1)}M earned.`,
         closed ? 7 : 0,
       );
     case 'obj-accuracy': {

@@ -117,7 +117,7 @@ export const INTEGRATION_CARDS: IntegrationCard[] = [
     name: 'Systems Integration Overrun',
     category: 'Operational',
     description:
-      'The two ERP estates cannot be reconciled on the planned timeline. An additional $30M and eighteen months are required.',
+      'The two ERP estates cannot be reconciled on the planned timeline. An additional £30M and eighteen months are required.',
     valueImpactPct: -5,
   },
   {
@@ -135,7 +135,7 @@ export const INTEGRATION_CARDS: IntegrationCard[] = [
     name: 'Hidden Liability Emerges',
     category: 'Legal',
     description:
-      'A pre-closing liability surfaces after the deal. Whether you recover a dollar of it depends entirely on the reps, the basket, the cap and the survival period.',
+      'A pre-closing liability surfaces after the deal. Whether you recover a penny of it depends entirely on the reps, the basket, the cap and the survival period.',
     valueImpactPct: -20,
     repCategory: 'litigation',
     claimPct: 12,

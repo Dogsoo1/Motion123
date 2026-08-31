@@ -1,7 +1,8 @@
 import { applyAction, createGame, type GameAction, type GameState } from '../engine/game.js';
+import { DIFFICULTY_LIST } from '../engine/content/advisers.js';
 import { SCENARIOS } from '../engine/content/scenarios.js';
 import { currentPrice } from '../engine/state.js';
-import { PHASE_NAMES, ROLE_NAMES, type PhaseId } from '../engine/types.js';
+import { PHASE_NAMES, ROLE_NAMES, type DifficultyTier, type PhaseId } from '../engine/types.js';
 import { clear, h } from './dom.js';
 import { money } from './format.js';
 import type { Ctx } from './views/common.js';
@@ -17,6 +18,7 @@ import { resultsView } from './views/results.js';
 const root = document.getElementById('app')!;
 
 let state: GameState | null = null;
+let difficulty: DifficultyTier = 'red-flag';
 let error = '';
 let draft: Record<string, unknown> = {};
 let lastStep = '';
@@ -62,6 +64,27 @@ function setupScreen(): HTMLElement {
           null,
           'Seven phases, from screening the market to arguing about indemnity claims two years after closing. Every term you negotiate has a mechanical consequence later — that is the whole point.',
         ),
+        h('h3', null, 'Difficulty'),
+        h(
+          'div',
+          { class: 'grid three' },
+          DIFFICULTY_LIST.map((tier) =>
+            h(
+              'div',
+              {
+                class: `card ${difficulty === tier.id ? 'selected' : ''}`,
+                onclick: () => {
+                  difficulty = tier.id;
+                  render();
+                },
+              },
+              h('div', { class: 'title' }, tier.name),
+              h('div', { class: 'meta' }, `${tier.diligenceBudget} DP budget`),
+              h('div', { class: 'desc' }, tier.summary),
+            ),
+          ),
+        ),
+        h('h3', null, 'Scenario'),
         h(
           'div',
           { class: 'grid two' },
@@ -89,7 +112,11 @@ function setupScreen(): HTMLElement {
 }
 
 function startGame(scenarioId: string): void {
-  state = createGame({ scenarioId, seed: `deal-${Date.now()}-${Math.floor(Math.random() * 9999)}` });
+  state = createGame({
+    scenarioId,
+    difficulty,
+    seed: `deal-${Date.now()}-${Math.floor(Math.random() * 9999)}`,
+  });
   error = '';
   draft = {};
   render();
@@ -103,7 +130,11 @@ function masthead(): HTMLElement {
     h('span', { class: 'sub' }, 'M&A Simulation'),
     h('span', { class: 'spacer' }),
     state
-      ? h('span', { class: 'sub' }, `${state.scenario.name} · ${state.market.name}`)
+      ? h(
+        'span',
+        { class: 'sub' },
+        `Project ${state.codename} · ${state.scenario.name} · ${state.market.name}`,
+      )
       : h('span', { class: 'sub' }, 'Select a scenario'),
   );
 }
@@ -123,6 +154,11 @@ function ticker(): HTMLElement | null {
     ],
     ['Sunk cost', money(state.buyerSunkCost), ''],
     ['Clock', `${state.clock} / ${state.parClock}`, state.clock > state.parClock ? 'bad' : ''],
+    [
+      'Long stop',
+      `${Math.max(0, state.longStopRounds - state.clock)} rounds`,
+      state.longStopRounds - state.clock <= 4 ? 'bad' : '',
+    ],
   ];
   if (price > 0) items.splice(1, 0, ['Price', money(price), 'gold']);
 

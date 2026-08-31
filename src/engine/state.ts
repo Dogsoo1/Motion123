@@ -1,3 +1,11 @@
+import {
+  COMPROMISED_REPORT_CODENAME,
+  DEAL_CODENAMES,
+  DIFFICULTY_PROFILES,
+  LONG_STOP_DAY,
+  LONG_STOP_MONTH,
+  type DiligenceProviderId,
+} from './content/advisers.js';
 import { MARKET_ENVIRONMENTS, MARKET_ENVIRONMENT_LIST } from './content/markets.js';
 import { OBJECTIVES_FOR_ROLE } from './content/objectives.js';
 import { SCENARIO_BY_ID, SCENARIOS } from './content/scenarios.js';
@@ -17,6 +25,7 @@ import {
   type ClosingOutcome,
   type CompetingBidder,
   type DefinitiveAgreement,
+  type DifficultyTier,
   type DiligenceResult,
   type DisclosureStrategy,
   type IndicationOfInterest,
@@ -66,6 +75,9 @@ export interface GameState {
   rngState: number;
   scenario: Scenario;
   market: MarketEnvironment;
+  difficulty: DifficultyTier;
+  /** Project codename for this playthrough (NAMING.md — deal codenames). */
+  codename: string;
   phase: PhaseId;
   step: GameStep;
 
@@ -95,6 +107,10 @@ export interface GameState {
   loi?: LoiTerms;
   loiRoundsRemaining: number;
 
+  /** Provider retained for the diligence fieldwork. */
+  diligenceProvider?: DiligenceProviderId;
+  /** Optional retainers the buyer has taken on. */
+  retainers: string[];
   dataRoom?: DataRoom;
   diligence?: DiligenceResult;
   /** Price after diligence repricing, $M. */
@@ -120,11 +136,19 @@ export interface GameState {
   clock: number;
   /**
    * Baseline pace the scenario expects, in action rounds. A thorough buyer —
-   * screening the market, running all three valuation methods and spending a
-   * full diligence budget — lands close to this; rushing beats it, and a
-   * Second Request blows past it.
+   * screening the market, running all three valuation methods, retaining the
+   * forensic provider and spending a full diligence budget — lands right on
+   * this. Rushing beats it and earns the speed points; a Second Request or a
+   * drawn-out letter negotiation blows past it and starts costing.
    */
   parClock: number;
+  /**
+   * Long stop date for this deal — 23 March of the following year. Blowing
+   * through it lets either side walk (NAMING.md — system defaults).
+   */
+  longStopDate: string;
+  /** Action rounds available before the long stop date is reached. */
+  longStopRounds: number;
 
   log: LogEntry[];
   status: 'active' | 'terminated' | 'complete';
@@ -135,6 +159,7 @@ export interface NewGameOptions {
   seed?: string;
   scenarioId?: string;
   humanRole?: RoleId;
+  difficulty?: DifficultyTier;
 }
 
 /** Screening fee per target examined, $M (GDD §6 Phase 1). */
@@ -150,16 +175,28 @@ export function createGame(options: NewGameOptions = {}): GameState {
     ? MARKET_ENVIRONMENTS[scenario.market]
     : rng.pick(MARKET_ENVIRONMENT_LIST);
 
+  const difficulty = options.difficulty ?? 'red-flag';
+  const tier = DIFFICULTY_PROFILES[difficulty];
+
+  // Project Shutter is reserved for deals where the report itself is wrong.
+  const codename = tier.reportsCompromised
+    ? COMPROMISED_REPORT_CODENAME
+    : rng.pick(DEAL_CODENAMES.filter((c) => c !== COMPROMISED_REPORT_CODENAME));
+
+  const longStop = new Date(Date.UTC(new Date().getUTCFullYear() + 1, LONG_STOP_MONTH - 1, LONG_STOP_DAY));
+
   const acquirer = scenario.acquirerId
     ? ACQUIRER_BY_ID[scenario.acquirerId]
     : rng.pick(ACQUIRERS);
 
+  // Four of the six go to market, so which companies are available is itself
+  // a variable between playthroughs.
   const marketTargets = scenario.targetId
     ? [TARGET_BY_ID[scenario.targetId], ...rng.sample(
         TARGET_COMPANIES.filter((t) => t.id !== scenario.targetId),
-        4,
+        3,
       )]
-    : rng.sample(TARGET_COMPANIES, 5);
+    : rng.sample(TARGET_COMPANIES, 4);
 
   const players = {} as Record<RoleId, PlayerState>;
   // Objectives are dealt without replacement — no two seats chase the same one.
@@ -187,6 +224,8 @@ export function createGame(options: NewGameOptions = {}): GameState {
     rngState: rng.snapshot(),
     scenario,
     market,
+    difficulty,
+    codename,
     phase: 1,
     step: 'screening',
     players,
@@ -197,6 +236,7 @@ export function createGame(options: NewGameOptions = {}): GameState {
     comparables: [],
     precedentTransactions: [],
     valuationRanges: [],
+    retainers: [],
     competingBidders: [],
     loiExchanges: [],
     loiRoundsRemaining: 3,
@@ -204,7 +244,14 @@ export function createGame(options: NewGameOptions = {}): GameState {
     buyerSunkCost: 0,
     bankerFees: 0,
     clock: 0,
-    parClock: 20,
+    parClock: 26,
+    longStopDate: longStop.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }),
+    longStopRounds: 30,
     log: [],
     status: 'active',
   };
@@ -212,8 +259,12 @@ export function createGame(options: NewGameOptions = {}): GameState {
   pushLog(state, {
     phase: 1,
     role: 'system',
-    text: `${scenario.name} — ${market.name}`,
-    detail: [scenario.premise, market.description],
+    text: `Project ${codename} — ${scenario.name}`,
+    detail: [
+      scenario.premise,
+      `${market.name}. ${market.description}`,
+      `Long stop date: ${state.longStopDate}.`,
+    ],
   });
   pushLog(state, {
     phase: 1,
@@ -268,7 +319,7 @@ export function spend(state: GameState, amount: number, reason: string): void {
   pushLog(state, {
     phase: state.phase,
     role: 'buyer',
-    text: `$${round(amount, 1)}M — ${reason}`,
+    text: `£${round(amount, 1)}M — ${reason}`,
     tone: 'neutral',
   });
 }

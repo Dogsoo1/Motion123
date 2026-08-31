@@ -206,7 +206,7 @@ export function runCompsAnalysis(
     high: round(mid * (1 + widthPct), 1),
     notes: [
       `Selected ${selected.length} comparables; median EV/EBITDA of ${round(chosenMultiple, 2)}x`,
-      `Applied to LTM EBITDA of $${round(ebitda, 0)}M, less net debt of $${round(netDebt, 0)}M`,
+      `Applied to LTM EBITDA of £${round(ebitda, 0)}M, less net debt of £${round(netDebt, 0)}M`,
       `Range width set by market dispersion (2d6 = ${spreadRoll})`,
       avgRelevance > 0.7
         ? 'Comparable set is tight — the peers genuinely rhyme with this business'

@@ -5,11 +5,28 @@ import { assessMac, carveOutsFromValue, negotiateAgreement } from '../src/engine
 import { requiredScopeFor, resolveClaim } from '../src/engine/closing.js';
 import { computeHhi, isPresumptivelyAnticompetitive } from '../src/engine/regulatory.js';
 import { Rng } from '../src/engine/rng.js';
-import { buildDataRoom, emptyAllocation, runDiligence, totalAllocationCost } from '../src/engine/diligence.js';
-import { TARGET_BY_ID } from '../src/engine/content/targets.js';
+import {
+  buildDataRoom,
+  emptyAllocation,
+  latentFindings,
+  runDiligence,
+  totalAllocationCost,
+} from '../src/engine/diligence.js';
+import {
+  COMPROMISED_REPORT_CODENAME,
+  COMPROMISED_REPORT_MISS_RATE,
+  DEAL_CODENAMES,
+  DIFFICULTY_PROFILES,
+  DILIGENCE_PROVIDERS,
+  RIVALS,
+} from '../src/engine/content/advisers.js';
+import { competingBidderResponse } from '../src/engine/ai.js';
+import { createGame } from '../src/engine/state.js';
+import { TARGET_BY_ID, TARGET_COMPANIES } from '../src/engine/content/targets.js';
 import { MARKET_ENVIRONMENTS } from '../src/engine/content/markets.js';
 import { DATA_ROOM_BY_ID } from '../src/engine/content/dataroom.js';
 import { intrinsicEquityValue, runDcfAnalysis, defaultDcfAssumptions } from '../src/engine/valuation.js';
+import { DILIGENCE_CATEGORIES } from '../src/engine/types.js';
 import type { DefinitiveAgreement, RepCategory } from '../src/engine/types.js';
 
 function agreementWith(overrides: Partial<DefinitiveAgreement> = {}): DefinitiveAgreement {
@@ -320,7 +337,7 @@ test('a narrower market definition raises concentration', () => {
 });
 
 test('deeper diligence reveals more and leaves less latent risk', () => {
-  const target = TARGET_BY_ID['nexagen'];
+  const target = TARGET_BY_ID['sedia'];
   const build = () => buildDataRoom(target, 'selective', new Rng('dr-seed'));
 
   const shallow = emptyAllocation();
@@ -338,7 +355,7 @@ test('deeper diligence reveals more and leaves less latent risk', () => {
 });
 
 test('burying findings pushes them deeper into the folder', () => {
-  const target = TARGET_BY_ID['meridian'];
+  const target = TARGET_BY_ID['avonmouth'];
   const buried = buildDataRoom(target, 'bury', new Rng('bury'));
   const disclosed = buildDataRoom(target, 'full', new Rng('full'));
 
@@ -355,8 +372,8 @@ test('burying findings pushes them deeper into the folder', () => {
 });
 
 test('hidden findings reduce intrinsic value', () => {
-  const clean = { ...TARGET_BY_ID['nexagen'], hiddenFindingIds: [] };
-  const dirty = TARGET_BY_ID['nexagen'];
+  const clean = { ...TARGET_BY_ID['belgrave'], hiddenFindingIds: [] };
+  const dirty = TARGET_BY_ID['belgrave'];
   const market = MARKET_ENVIRONMENTS.bull;
   assert.ok(
     intrinsicEquityValue(clean, market) > intrinsicEquityValue(dirty, market),
@@ -370,7 +387,7 @@ test('required scope scales with severity', () => {
 });
 
 test('the DCF rejects a WACC below terminal growth', () => {
-  const target = TARGET_BY_ID['atlas-data'];
+  const target = TARGET_BY_ID['march-holdings'];
   const assumptions = defaultDcfAssumptions(target);
   assert.throws(() =>
     runDcfAnalysis(target, MARKET_ENVIRONMENTS.bull, {
@@ -382,9 +399,119 @@ test('the DCF rejects a WACC below terminal growth', () => {
 });
 
 test('a higher discount rate produces a lower valuation', () => {
-  const target = TARGET_BY_ID['atlas-data'];
+  const target = TARGET_BY_ID['march-holdings'];
   const base = defaultDcfAssumptions(target);
   const cheap = runDcfAnalysis(target, MARKET_ENVIRONMENTS.bull, { ...base, waccPct: 8 });
   const dear = runDcfAnalysis(target, MARKET_ENVIRONMENTS.bull, { ...base, waccPct: 14 });
   assert.ok(cheap.mid > dear.mid);
+});
+
+test('Santa Barbara misses findings that Monk Forensic reaches', () => {
+  const target = TARGET_BY_ID['belgrave'];
+  const allocation = emptyAllocation();
+  for (const category of DILIGENCE_CATEGORIES) allocation[category] = 3;
+
+  let monkFound = 0;
+  let santaBarbaraFound = 0;
+  const runs = 40;
+  for (let i = 0; i < runs; i++) {
+    const monkRoom = buildDataRoom(target, 'selective', new Rng(`room-${i}`));
+    const sbRoom = buildDataRoom(target, 'selective', new Rng(`room-${i}`));
+    monkFound += runDiligence(monkRoom, allocation, new Rng(`run-${i}`), {
+      missRate: DILIGENCE_PROVIDERS.monk.missRate,
+      reachesDeeper: DILIGENCE_PROVIDERS.monk.reachesDeeper,
+    }).revealed.length;
+    santaBarbaraFound += runDiligence(sbRoom, allocation, new Rng(`run-${i}`), {
+      missRate: DILIGENCE_PROVIDERS['santa-barbara'].missRate,
+      reachesDeeper: DILIGENCE_PROVIDERS['santa-barbara'].reachesDeeper,
+    }).revealed.length;
+  }
+
+  assert.ok(
+    monkFound > santaBarbaraFound,
+    `Monk should surface more (${monkFound} vs ${santaBarbaraFound})`,
+  );
+});
+
+test('a missed finding becomes latent rather than disappearing', () => {
+  const target = TARGET_BY_ID['singleton'];
+  const allocation = emptyAllocation();
+  for (const category of DILIGENCE_CATEGORIES) allocation[category] = 3;
+
+  const room = buildDataRoom(target, 'selective', new Rng('latent-room'));
+  const result = runDiligence(room, allocation, new Rng('latent-run'), {
+    missRate: 0.9,
+    reachesDeeper: false,
+  });
+
+  // Everything the fieldwork reached but did not report is still in the room,
+  // and will surface after closing.
+  assert.ok(result.missed.length > 0, 'misses are recorded as latent risk');
+  assert.equal(
+    latentFindings(room).length,
+    result.missed.length,
+    'latent findings match what the report failed to surface',
+  );
+});
+
+test('Shutter Island keeps ground truth out of reach whoever you retain', () => {
+  const tier = DIFFICULTY_PROFILES['shutter-island'];
+  assert.ok(tier.reportsCompromised);
+  assert.ok(
+    Math.max(DILIGENCE_PROVIDERS.monk.missRate, COMPROMISED_REPORT_MISS_RATE) > 0.3,
+    'even the forensic provider misses material on this tier',
+  );
+  assert.ok(tier.diligenceBudget < DIFFICULTY_PROFILES['clean-team'].diligenceBudget);
+  assert.equal(tier.disclosure, 'bury');
+});
+
+test('Masego walks on price and Tanerelle does not always', () => {
+  let masegoStretched = 0;
+  let tanerelleStretched = 0;
+  for (let i = 0; i < 200; i++) {
+    const above = 1000;
+    const masego = competingBidderResponse(
+      { id: 'masego', name: 'Masego Capital', ceiling: 900, active: true, bid: 850 },
+      above,
+      new Rng(`m-${i}`),
+    );
+    const tanerelle = competingBidderResponse(
+      { id: 'tanerelle', name: 'Tanerélle Office', ceiling: 900, active: true, bid: 850 },
+      above,
+      new Rng(`t-${i}`),
+    );
+    if (!masego.withdrew) masegoStretched++;
+    if (!tanerelle.withdrew) tanerelleStretched++;
+  }
+  assert.equal(masegoStretched, 0, 'Masego never bids past its own ceiling');
+  assert.ok(tanerelleStretched > 0, 'Tanerelle sometimes does');
+});
+
+test('every canonical target and adviser name is present', () => {
+  const targetNames = TARGET_COMPANIES.map((t) => t.name);
+  for (const expected of [
+    'Avonmouth Port Holdings',
+    'Addlestone Leisure Group',
+    'March Holdings',
+    'Sedia Group',
+    'Singleton Foods',
+    'Belgrave Textiles',
+  ]) {
+    assert.ok(targetNames.includes(expected), `${expected} is in the target set`);
+  }
+  assert.equal(TARGET_COMPANIES.length, 6);
+  assert.equal(DILIGENCE_PROVIDERS.monk.name, 'Monk Forensic');
+  assert.equal(DILIGENCE_PROVIDERS['santa-barbara'].name, 'Santa Barbara Advisory');
+  assert.equal(RIVALS.masego.name, 'Masego Capital');
+  assert.equal(RIVALS.tanerelle.name, 'Tanerélle Office');
+});
+
+test('Project Shutter is reserved for compromised-report games', () => {
+  const compromised = createGame({ seed: 'codename-a', difficulty: 'shutter-island' });
+  assert.equal(compromised.codename, COMPROMISED_REPORT_CODENAME);
+  for (let i = 0; i < 30; i++) {
+    const ordinary = createGame({ seed: `codename-${i}`, difficulty: 'red-flag' });
+    assert.notEqual(ordinary.codename, COMPROMISED_REPORT_CODENAME);
+    assert.ok(DEAL_CODENAMES.includes(ordinary.codename as never));
+  }
 });

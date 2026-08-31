@@ -1,5 +1,4 @@
-import { SCREENING_FEE } from '../../engine/state.js';
-import { VALUATION_COSTS } from '../../engine/game.js';
+import { screeningFee, valuationCost } from '../../engine/game.js';
 import { latest, unaffectedEquityValue } from '../../engine/valuation.js';
 import { h, field, numberInput, panel } from '../dom.js';
 import { money, moneyExact, pct } from '../format.js';
@@ -19,7 +18,7 @@ export function screeningView(ctx: Ctx): HTMLElement {
         'p',
         { class: 'lede' },
         'Five companies are in the market. Screening one costs ',
-        moneyExact(SCREENING_FEE),
+        moneyExact(screeningFee(state)),
         ' and opens its financials to you. You can only pursue a target you have screened.',
       ),
       h(
@@ -47,7 +46,7 @@ export function screeningView(ctx: Ctx): HTMLElement {
                 ? h(
                     'button',
                     { onclick: () => ctx.dispatch({ type: 'screen-target', targetId: target.id }) },
-                    `Screen — ${moneyExact(SCREENING_FEE)}`,
+                    `Screen — ${moneyExact(screeningFee(state))}`,
                   )
                 : h(
                     'button',
@@ -103,7 +102,7 @@ export function valuationView(ctx: Ctx): HTMLElement {
     // --- Comparable companies ---------------------------------------------
     panel(
       'Comparable Companies Analysis',
-      done.has('comps') ? 'Complete' : `${moneyExact(VALUATION_COSTS.comps)} · fast, imprecise`,
+      done.has('comps') ? 'Complete' : `${moneyExact(valuationCost(state, 'comps'))} · fast, imprecise`,
       done.has('comps')
         ? renderRange(ctx, 'comps')
         : h(
@@ -176,7 +175,7 @@ export function valuationView(ctx: Ctx): HTMLElement {
       'Precedent Transactions Analysis',
       done.has('precedent')
         ? 'Complete'
-        : `${moneyExact(VALUATION_COSTS.precedent)} · slower, better precision`,
+        : `${moneyExact(valuationCost(state, 'precedent'))} · slower, better precision`,
       done.has('precedent')
         ? renderRange(ctx, 'precedent')
         : h(
@@ -250,7 +249,7 @@ export function valuationView(ctx: Ctx): HTMLElement {
     // --- DCF ---------------------------------------------------------------
     panel(
       'Discounted Cash Flow',
-      done.has('dcf') ? 'Complete' : `${moneyExact(VALUATION_COSTS.dcf)} · expensive, no dice`,
+      done.has('dcf') ? 'Complete' : `${moneyExact(valuationCost(state, 'dcf'))} · expensive, no dice`,
       done.has('dcf')
         ? renderRange(ctx, 'dcf')
         : h(

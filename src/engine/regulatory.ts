@@ -135,7 +135,7 @@ export function runRegulatoryReview(input: RegulatoryInput): RegulatoryOutcome {
   const { rng, target, acquirer, dealValue } = input;
   const narrative: string[] = [];
 
-  const sameSector = acquirer.sector === target.sector;
+  const sameSector = acquirer.overlapSectors.includes(target.sector);
   const acquirerShare = sameSector ? acquirer.marketSharePct : acquirer.marketSharePct * 0.15;
 
   const hhi = computeHhi({
@@ -210,8 +210,8 @@ export function runRegulatoryReview(input: RegulatoryInput): RegulatoryOutcome {
 
     case 'information-request':
       roundsAdded = 2;
-      costToBuyer = round(dealValue * 0.0025 + 4, 1);
-      costToSeller = round(dealValue * 0.002 + 3, 1);
+      costToBuyer = round(dealValue * 0.004, 1);
+      costToSeller = round(dealValue * 0.003, 1);
       narrative.push(
         'Staff asked voluntary questions. Answering them cost time and outside counsel fees, but the deal moved on.',
       );
@@ -219,8 +219,8 @@ export function runRegulatoryReview(input: RegulatoryInput): RegulatoryOutcome {
 
     case 'second-request': {
       roundsAdded = 4;
-      costToBuyer = round(dealValue * 0.009 + 18, 1);
-      costToSeller = round(dealValue * 0.007 + 14, 1);
+      costToBuyer = round(dealValue * 0.016, 1);
+      costToSeller = round(dealValue * 0.012, 1);
       narrative.push(
         'A Second Request landed. Document collection, custodian interviews, and an economist on both sides.',
       );
@@ -242,8 +242,8 @@ export function runRegulatoryReview(input: RegulatoryInput): RegulatoryOutcome {
 
     case 'challenge': {
       roundsAdded = 6;
-      costToBuyer = round(dealValue * 0.016 + 30, 1);
-      costToSeller = round(dealValue * 0.012 + 22, 1);
+      costToBuyer = round(dealValue * 0.028, 1);
+      costToSeller = round(dealValue * 0.021, 1);
       narrative.push('The agency sued to block. Both sides now find out what a trial costs.');
 
       // The parties can settle with a remedy, or litigate.
@@ -291,7 +291,7 @@ export function runRegulatoryReview(input: RegulatoryInput): RegulatoryOutcome {
     );
     divestitureValue = round(dealValue * overlapFraction * 0.55, 1);
     narrative.push(
-      `Divestiture package sized at $${divestitureValue}M of deal value, sold to an agency-approved buyer at a discount.`,
+      `Divestiture package sized at £${divestitureValue}M of deal value, sold to an agency-approved buyer at a discount.`,
     );
     if (remedy === 'fix-it-first') {
       narrative.push('Fix-it-first: the divestiture closed before the main transaction, removing the review risk entirely.');
@@ -302,7 +302,7 @@ export function runRegulatoryReview(input: RegulatoryInput): RegulatoryOutcome {
     const fee = round((dealValue * input.reverseTerminationFeePct) / 100, 1);
     costToBuyer += fee;
     narrative.push(
-      `Reverse termination fee of $${fee}M is payable to the seller for failure to obtain clearance.`,
+      `Reverse termination fee of £${fee}M is payable to the seller for failure to obtain clearance.`,
     );
   }
 

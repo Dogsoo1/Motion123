@@ -1,4 +1,14 @@
-import { DP_CASH_COST, diligenceBudget } from '../../engine/game.js';
+import {
+  AVAILABLE_RETAINERS,
+  diligenceBudget,
+  dpCashCost,
+  referenceValue,
+} from '../../engine/game.js';
+import {
+  DILIGENCE_PROVIDER_LIST,
+  DISCLOSURE_BUNDLE_LABEL,
+  type DiligenceProviderId,
+} from '../../engine/content/advisers.js';
 import { DILIGENCE_DEPTH_NAMES, DILIGENCE_CATEGORIES, DILIGENCE_CATEGORY_NAMES } from '../../engine/types.js';
 import type { DiligenceCategory, DiligenceDepth } from '../../engine/types.js';
 import { emptyAllocation, totalAllocationCost } from '../../engine/diligence.js';
@@ -16,6 +26,8 @@ export function diligenceAllocationView(ctx: Ctx): HTMLElement {
     'allocation',
     emptyAllocation(),
   );
+  const providerId = draftValue<DiligenceProviderId>(ctx, 'provider', 'santa-barbara');
+  const provider = DILIGENCE_PROVIDER_LIST.find((p) => p.id === providerId)!;
   const spent = totalAllocationCost(allocation);
   const remaining = budget - spent;
 
@@ -31,7 +43,71 @@ export function diligenceAllocationView(ctx: Ctx): HTMLElement {
     'div',
     null,
     panel(
-      'The Data Room',
+      'Diligence Provider',
+      provider.name,
+      h(
+        'p',
+        { class: 'lede' },
+        'Two firms have pitched. Both will produce a report in the same format, to the same headings, on the categories you fund.',
+      ),
+      h(
+        'div',
+        { class: 'grid two' },
+        DILIGENCE_PROVIDER_LIST.map((option) =>
+          h(
+            'div',
+            {
+              class: `card ${providerId === option.id ? 'selected' : ''}`,
+              onclick: () => {
+                setDraft(ctx, 'provider', option.id);
+                ctx.rerender();
+              },
+            },
+            h('div', { class: 'title' }, option.name),
+            h(
+              'div',
+              { class: 'meta' },
+              `${option.discipline} · ${moneyExact(referenceValue(state) * option.feePct)} retainer · ${
+                option.timetableCost > 0
+                  ? `+${option.timetableCost} rounds`
+                  : 'no timetable cost'
+              }`,
+            ),
+            h('div', { class: 'desc' }, option.pitch),
+          ),
+        ),
+      ),
+    ),
+
+    panel(
+      'Additional Advisers',
+      `${state.retainers.length} retained`,
+      h(
+        'div',
+        { class: 'grid two' },
+        AVAILABLE_RETAINERS.map((retainer) => {
+          const held = state.retainers.includes(retainer.id);
+          return h(
+            'div',
+            {
+              class: `card ${held ? 'selected' : ''}`,
+              onclick: () =>
+                ctx.dispatch({ type: 'retain', retainerId: retainer.id, on: !held }),
+            },
+            h('div', { class: 'title' }, retainer.name),
+            h(
+              'div',
+              { class: 'meta' },
+              `${retainer.role} · ${moneyExact(referenceValue(state) * retainer.feePct)}`,
+            ),
+            h('div', { class: 'desc' }, retainer.pitch),
+          );
+        }),
+      ),
+    ),
+
+    panel(
+      `The Data Room — ${DISCLOSURE_BUNDLE_LABEL}`,
       `${spent} / ${budget} DP committed`,
       h(
         'p',
@@ -122,7 +198,14 @@ export function diligenceAllocationView(ctx: Ctx): HTMLElement {
           'div',
           { class: 'card static' },
           h('div', { class: 'meta' }, 'Cash cost'),
-          h('div', { class: 'mono', style: 'font-size:20px' }, moneyExact(spent * DP_CASH_COST)),
+          h(
+            'div',
+            { class: 'mono', style: 'font-size:20px' },
+            moneyExact(
+              spent * dpCashCost(state) * provider.costPerPoint +
+                referenceValue(state) * provider.feePct,
+            ),
+          ),
         ),
       ),
       h(
@@ -133,7 +216,8 @@ export function diligenceAllocationView(ctx: Ctx): HTMLElement {
           {
             class: 'primary',
             disabled: spent === 0,
-            onclick: () => ctx.dispatch({ type: 'allocate-diligence', allocation }),
+            onclick: () =>
+              ctx.dispatch({ type: 'allocate-diligence', allocation, provider: providerId }),
           },
           'Commit the diligence plan',
         ),

@@ -46,7 +46,7 @@ export const AGREEMENT_FRONT_LABELS: Record<AgreementFront, string> = {
 export const AGREEMENT_FRONT_BLURBS: Record<AgreementFront, string> = {
   reps: 'How much the seller has to promise is true. Broad reps are what an indemnity claim hangs on later.',
   mac: 'Every carve-out the seller wins narrows your right to walk. The disproportionate impact exception is worth fighting for.',
-  indemnity: 'Cap, basket, survival and escrow. This is where diligence findings turn into recoverable dollars.',
+  indemnity: 'Cap, basket, survival and escrow. This is where diligence findings turn into recoverable pounds.',
   conditions: 'Financing conditions, consents, termination fees, specific performance. Certainty of close cuts both ways.',
 };
 

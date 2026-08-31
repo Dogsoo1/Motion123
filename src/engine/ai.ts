@@ -1,3 +1,4 @@
+import { DIFFICULTY_PROFILES, RIVALS, type RivalId } from './content/advisers.js';
 import { Rng, clamp, round } from './rng.js';
 import { targetIntrinsic, targetUnaffected, type GameState } from './state.js';
 import type {
@@ -27,17 +28,19 @@ export function chooseProcessType(state: GameState, rng: Rng): ProcessType {
   ]);
 }
 
-/** How forthcoming the seller is in the data room (GDD §3.3). */
+/**
+ * How forthcoming the seller is in the data room (GDD §3.3).
+ *
+ * The difficulty tier sets the floor; within Red Flag the seller still has a
+ * choice about how far to push it.
+ */
 export function chooseDisclosureStrategy(state: GameState, rng: Rng): DisclosureStrategy {
-  const target = state.target;
-  if (!target) return 'selective';
-  // The more there is to hide, the more tempting burial becomes.
-  const skeletons = target.hiddenFindingIds.length;
+  const tier = DIFFICULTY_PROFILES[state.difficulty];
+  if (tier.disclosure !== 'selective') return tier.disclosure;
+  const skeletons = state.target?.hiddenFindingIds.length ?? 0;
   return rng.weighted<DisclosureStrategy>([
-    ['full', 14 - skeletons * 2],
-    ['selective', 42],
-    ['drip', 24],
-    ['bury', 8 + skeletons * 5],
+    ['selective', 52],
+    ['drip', 30 + skeletons * 2],
   ]);
 }
 
@@ -72,36 +75,43 @@ export function chooseRegulatorPosture(state: GameState, rng: Rng): RegulatoryPo
   ]);
 }
 
-/** Spin up competing bidders for an auction (GDD §2.3 Phase 2). */
+/**
+ * Spin up rival bidders (GDD §2.3 Phase 2, NAMING.md advisers).
+ *
+ * Two archetypes, and they behave differently in the endgame: Masego is
+ * disciplined and walks rather than exceed its own view of value; Tanerélle
+ * exceeds it whenever the asset fits what the family is assembling.
+ */
 export function createCompetingBidders(state: GameState, rng: Rng): CompetingBidder[] {
   const configured = state.scenario.competingBidders;
   const count =
     configured !== undefined
       ? configured
       : state.processType === 'auction'
-        ? rng.int(1, 3)
+        ? rng.int(1, 2)
         : rng.bool(state.market.competitionLevel * 0.6)
           ? 1
           : 0;
 
   const intrinsic = targetIntrinsic(state);
-  const names = [
-    'Ridgeway Partners',
-    'Compass Strategic',
-    'Alder Grove Capital',
-    'Fairmont Holdings',
-  ];
+  const sector = state.target?.sector ?? '';
+
+  // Masego enters first; Tanerélle appears in the deals it actually wants.
+  const order: RivalId[] = rng.bool(0.5) ? ['masego', 'tanerelle'] : ['tanerelle', 'masego'];
 
   const bidders: CompetingBidder[] = [];
-  for (let i = 0; i < count; i++) {
-    // Rivals value the asset differently — some are disciplined, some are not.
-    const ceiling = intrinsic * rng.float(0.92, 1.32);
+  for (let i = 0; i < Math.min(count, order.length); i++) {
+    const profile = RIVALS[order[i]];
+    const fits = profile.overpaysOnFit && (profile.fitSectors ?? []).includes(sector);
+    const [lo, hi] = profile.ceilingMultiple;
+    const ceiling = intrinsic * rng.float(lo, hi) * (fits ? 1.15 : 1);
+    const [oLo, oHi] = profile.openingFraction;
     bidders.push({
-      id: `bidder-${i}`,
-      name: names[i % names.length],
+      id: profile.id,
+      name: profile.name,
       ceiling: round(ceiling, 1),
       active: true,
-      bid: round(ceiling * rng.float(0.78, 0.94), 1),
+      bid: round(ceiling * rng.float(oLo, oHi), 1),
     });
   }
   return bidders;
@@ -113,10 +123,17 @@ export function competingBidderResponse(
   playerBid: number,
   rng: Rng,
 ): { bid: number; withdrew: boolean } {
+  const profile = RIVALS[bidder.id as RivalId];
+
   if (playerBid >= bidder.ceiling) {
+    // Masego walks. Tanerélle sometimes finds another turn of the screw.
+    if (profile?.overpaysOnFit && rng.bool(0.45)) {
+      const stretched = playerBid * rng.float(1.03, 1.11);
+      return { bid: round(stretched, 1), withdrew: false };
+    }
     return { bid: bidder.bid, withdrew: true };
   }
-  // Bump to just above the player, with a little noise, up to the ceiling.
+
   const bump = Math.min(bidder.ceiling, playerBid * rng.float(1.015, 1.06));
   return { bid: round(bump, 1), withdrew: false };
 }
@@ -143,10 +160,10 @@ export function fairnessOpinion(params: {
     low,
     high,
     commentary: fair
-      ? `The consideration is within the range of fair value from a financial point of view ($${low}M–$${high}M).`
+      ? `The consideration is within the range of fair value from a financial point of view (£${low}M–£${high}M).`
       : price < low
-        ? `At $${round(price, 1)}M the consideration falls below our range of $${low}M–$${high}M. We cannot opine that it is fair.`
-        : `At $${round(price, 1)}M the consideration is above our range. Fair to the target's holders; your own board may have questions.`,
+        ? `At £${round(price, 1)}M the consideration falls below our range of £${low}M–£${high}M. We cannot opine that it is fair.`
+        : `At £${round(price, 1)}M the consideration is above our range. Fair to the target's holders; your own board may have questions.`,
   };
 }
 
@@ -155,7 +172,8 @@ export function sellerAgreementResistance(state: GameState, rng: Rng): number {
   const bidders = state.competingBidders.filter((b) => b.active).length;
   const base = 4.5 + bidders * 1.4;
   const marketPull = state.market.competitionLevel * 2;
-  return round(clamp(base + marketPull + rng.float(-1, 1), 1.5, 10), 2);
+  const tier = DIFFICULTY_PROFILES[state.difficulty].sellerResistance;
+  return round(clamp((base + marketPull + rng.float(-1, 1)) * tier, 1.5, 11), 2);
 }
 
 /** The seller's willingness to reprice after diligence findings (GDD §3.4). */

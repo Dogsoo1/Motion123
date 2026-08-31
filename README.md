@@ -1,7 +1,8 @@
 # Deal Room
 
 A playable implementation of the M&A simulation specified in
-[`GAME_DESIGN_DOCUMENT.md`](./GAME_DESIGN_DOCUMENT.md).
+[`GAME_DESIGN_DOCUMENT.md`](./GAME_DESIGN_DOCUMENT.md), with every company,
+adviser and system default fixed by [`NAMING.md`](./NAMING.md).
 
 You play the Buyer through all seven phases of a transaction — screening the
 market, valuing a target, negotiating an LOI, spending a finite diligence
@@ -23,12 +24,13 @@ the target loses its largest customer. Nothing is flavour text.
 ```bash
 npm install     # typescript and @types/node only; the game itself has no dependencies
 npm start       # builds, then serves at http://localhost:8080 (PORT=8081 to change)
-npm test        # 24 tests covering the rules engine
+npm test        # 30 tests covering the rules engine
 npm run balance # plays 360 games and reports whether skill is rewarded
 ```
 
 There is no bundler and no framework. `tsc` emits ES modules that the browser
-loads directly.
+loads directly. All monetary figures are in £M — every company in `NAMING.md`
+is British, so the deals are struck in sterling.
 
 ## How a game goes
 
@@ -47,11 +49,23 @@ the LOI over at most three rounds: price, consideration, exclusivity, break-up
 fee, no-shop, deposit. Let the rounds run out and the open terms default to
 market standard, which is worse for both sides than any negotiated outcome.
 
-**Phase 3 — Diligence.** Twelve Diligence Points across eight categories. One
-point opens the top file, three opens the whole category, four buys an expert
-read that lets you argue the top of the range on what you find. You cannot
-cover everything, and whatever you do not look at, you own. If the seller has
-buried the bad material, breadth finds nothing and only depth works.
+**Phase 3 — Diligence.** Diligence Points across eight categories. One point
+opens the top file, three opens the whole category, four buys an expert read
+that lets you argue the top of the range on what you find. You cannot cover
+everything, and whatever you do not look at, you own. If the seller has buried
+the bad material, breadth finds nothing and only depth works.
+
+You also choose who does the fieldwork. Monk Forensic is expensive and slow and
+reads a file deeper than you paid for. Santa Barbara Advisory is cheap and fast
+and writes up a proportion of what it found as clean. Both reports arrive in
+the same format under the same headings, and the game never tells you which
+kind you are holding — a category that came back empty looks identical either
+way. The difference surfaces after closing, as a liability nobody wrote down.
+
+Neither is the right answer. Under Clean Team there is nothing concealed, so
+Monk's premium buys you nothing. Under Red Flag it pays for itself. Under
+Shutter Island the reports are wrong whoever writes them, so paying for
+accuracy you cannot obtain is simply a worse way to lose.
 
 **Phase 4 — Structuring.** Five transaction structures with real consequences
 for liability, speed and consents; a seven-tranche financing stack constrained
@@ -79,19 +93,37 @@ indemnity terms decide how much of it you recover.
 
 ![Results](docs/screenshots/results.png)
 
+## Difficulty
+
+Three tiers, per `NAMING.md`:
+
+- **Clean Team** — full disclosure, 16 DP, a seller that negotiates in good faith.
+- **Red Flag** — partial disclosure, 12 DP, a seller that withholds.
+- **Shutter Island** — the liability is buried *and* the report is wrong. There is
+  no combination of spend and provider that reaches the truth before you sign.
+
 ## Does it reward skill?
 
-`npm run balance` plays 120 games per strategy across all five scenarios and
-reports:
+`npm run balance` plays 120 games per strategy across all five scenarios.
+`TIER=shutter-island npm run balance` runs the same sweep on another tier.
+Mean buyer score, and the share of closed deals that created value:
 
-| Strategy | Mean score | Deals closed | Of those, value-creating |
+| Strategy | Clean Team | Red Flag | Shutter Island |
 |---|---|---|---|
-| Reckless — bid the top of the range, 2 DP of diligence, no negotiation | 3.4 | 94% | 2% |
-| Competent — full valuation, spread diligence, balanced push | 21.9 | 100% | 28% |
-| Disciplined — bid low, deep diligence, heavy indemnity push, walk when it does not work | 47.0 | 100% | 59% |
+| Reckless — top of the range, 2 DP, no negotiation | 6.0 · 0% | −4.3 · 1% | −8.7 · 0% |
+| Competent — full valuation, spread diligence, balanced push | 69.5 · 60% | 27.0 · 11% | 13.0 · 4% |
+| Disciplined — bid low, deep diligence, forensic provider, heavy indemnity push | 77.0 · 85% | 47.3 · 40% | 33.2 · 21% |
 
-Careless buyers close almost every deal and create value on 2% of them, which
-is roughly the point.
+Monotonic in both directions: more care scores better on every tier, and every
+strategy scores worse as the tier hardens. Careless buyers close almost every
+deal and create value on essentially none of them, which is roughly the point.
+
+The provider choice is a genuine fork rather than a trap:
+
+| | Clean Team | Red Flag | Shutter Island |
+|---|---|---|---|
+| Monk Forensic | 62.5 | **30.1** | 11.0 |
+| Santa Barbara Advisory | **68.3** | 26.5 | **16.4** |
 
 ## Architecture
 
@@ -99,7 +131,7 @@ is roughly the point.
 src/engine/          Pure TypeScript, zero runtime dependencies, fully deterministic
   rng.ts             Seeded PRNG — (seed, actions) always reproduces the same game
   types.ts           Domain types, annotated with the GDD section each implements
-  content/           Cards and data: targets, data room, events, precedents, scenarios
+  content/           Cards and data: targets, advisers, data room, events, scenarios
   valuation.ts       Comps, precedents, DCF, accretion/dilution, LBO returns
   diligence.ts       Data room construction, disclosure strategy, findings
   negotiation.ts     Leverage, BATNA, concessions, term resolution
@@ -121,8 +153,13 @@ achievable and what makes the tests meaningful.
 ## What is implemented, and what is not
 
 **Implemented:** all seven phases; the four core roles with AI for three of
-them; 41 data room cards, 8 targets, 4 acquirers, 10 interim events, 12
-integration cards, 12 precedent cards, 12 private objectives, 5 scenarios;
+them; every name in `NAMING.md` and the mechanic behind it — the two diligence
+providers, both rival bidders, Bellion's timetable pressure, Destin & Conrad's
+drafting bonus, Linetti's leak damping and self-promotion, the three difficulty
+tiers, deal codenames with Project Shutter reserved, the long stop date, data
+room index numbering from 2403, and the Exposé; 45 data room cards, 6 targets,
+2 acquirers, 10 interim events, 12 integration cards, 12 precedent cards, 12
+private objectives, 5 scenarios;
 comps/precedent/DCF valuation; the full financing stack; five deal structures
 and four tax structures; representation scope negotiation; the 13 MAC
 carve-outs and the disproportionate impact exception; the complete
@@ -131,11 +168,20 @@ remedy, specific indemnities, R&W insurance); HSR review with HHI and remedies;
 MAC invocation; integration and post-closing claims; role scoring with private
 objectives.
 
-**Not implemented from the design document:** the expansion roles (Activist,
-Lender, Target CEO, Outside Counsel) and team play; hostile bids and the
-defence mechanism cards (the card data exists in `content/precedents.ts` but no
-phase plays them); real-time multiplayer and the campaign mode; CFIUS and the
-multi-jurisdictional regulatory module; the physical component set.
+**Not implemented:** Chronicles — there is no save system at all yet, so
+`NAMING.md`'s save-file convention has nothing to name. Project Easter is
+reserved but there is no tutorial to use it. From the design document: the
+expansion roles (Activist, Lender, Target CEO, Outside Counsel) and team play;
+hostile bids and the defence mechanism cards (the card data exists in
+`content/precedents.ts` but no phase plays them); real-time multiplayer and the
+campaign mode; CFIUS and the multi-jurisdictional regulatory module; the
+physical component set.
+
+**Open naming question:** `NAMING.md` covers targets, advisers, individuals and
+system defaults, but not the player's own acquiring vehicle. Crestline Capital
+Partners and Vantage Industries predate the file and have been left alone
+rather than invented over — per rule 4, that needs a decision rather than a
+guess.
 
 ## Licence
 

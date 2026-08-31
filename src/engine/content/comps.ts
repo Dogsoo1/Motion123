@@ -26,6 +26,46 @@ export interface SectorComps {
 }
 
 export const SECTOR_COMPS: Record<Sector, SectorComps> = {
+  'Transport & Logistics': {
+    sector: 'Transport & Logistics',
+    evEbitda: 11.2,
+    evRevenue: 3.1,
+    peRatio: 17,
+    spread: 0.2,
+    controlPremium: 0.26,
+    wacc: 0.078,
+    terminalGrowth: 0.02,
+  },
+  'Leisure & Hospitality': {
+    sector: 'Leisure & Hospitality',
+    evEbitda: 7.4,
+    evRevenue: 1.05,
+    peRatio: 14,
+    spread: 0.31,
+    controlPremium: 0.3,
+    wacc: 0.096,
+    terminalGrowth: 0.015,
+  },
+  'Food & Beverage': {
+    sector: 'Food & Beverage',
+    evEbitda: 12.6,
+    evRevenue: 2.0,
+    peRatio: 19,
+    spread: 0.17,
+    controlPremium: 0.28,
+    wacc: 0.076,
+    terminalGrowth: 0.02,
+  },
+  'Textiles & Apparel': {
+    sector: 'Textiles & Apparel',
+    evEbitda: 7.8,
+    evRevenue: 0.9,
+    peRatio: 12,
+    spread: 0.29,
+    controlPremium: 0.25,
+    wacc: 0.104,
+    terminalGrowth: 0.01,
+  },
   Technology: {
     sector: 'Technology',
     evEbitda: 17.5,

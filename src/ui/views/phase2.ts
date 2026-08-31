@@ -49,7 +49,7 @@ export function ioiView(ctx: Ctx): HTMLElement {
               'span',
               null,
               h('strong', null, `${bidders.length} competing bidder${bidders.length > 1 ? 's' : ''}`),
-              ' in the process. Every dollar of leverage you would otherwise have is now theirs.',
+              ' in the process. Every pound of leverage you would otherwise have is now theirs.',
             ),
             'bad',
           )

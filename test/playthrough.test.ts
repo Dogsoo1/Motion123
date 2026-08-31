@@ -61,7 +61,7 @@ function playFullGame(seed: string, scenarioId = 'friendly-merger'): GameState {
     allocation[category] = want;
     budget -= want;
   }
-  act({ type: 'allocate-diligence', allocation });
+  act({ type: 'allocate-diligence', allocation, provider: 'monk' });
   act({
     type: 'reprice',
     requestedCutPct: state.diligence!.priceAdjustmentPct,

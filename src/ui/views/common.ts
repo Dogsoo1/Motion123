@@ -1,6 +1,7 @@
 import type { GameAction, GameState } from '../../engine/game.js';
 import { h, panel, type Child } from '../dom.js';
 import { money, pct } from '../format.js';
+import { dataRoomIndex } from '../../engine/content/dataroom.js';
 import type { DataRoomCard, TargetCompany } from '../../engine/types.js';
 import { latest } from '../../engine/valuation.js';
 
@@ -50,7 +51,7 @@ export function targetCardFront(target: TargetCompany, extra?: Child): HTMLEleme
       h('dt', null, 'Market share'),
       h('dd', null, pct(target.marketSharePct)),
       target.sharePrice ? h('dt', null, 'Share price') : null,
-      target.sharePrice ? h('dd', null, `$${target.sharePrice.toFixed(2)}`) : null,
+      target.sharePrice ? h('dd', null, `£${target.sharePrice.toFixed(2)}`) : null,
     ),
     h('h3', null, 'Disclosed risks'),
     h(
@@ -71,6 +72,7 @@ export function findingRow(card: DataRoomCard, impactPct?: number): HTMLElement 
       'div',
       { class: 'head' },
       h('span', { class: `sev ${card.severity}` }, card.severity),
+      h('span', { class: 'mono muted', style: 'font-size:11px' }, dataRoomIndex(card)),
       h('span', { class: 'name' }, card.title),
       impactPct !== undefined
         ? h('span', { class: 'mono muted', style: 'margin-left:auto' }, `−${impactPct.toFixed(1)}%`)

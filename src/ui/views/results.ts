@@ -190,7 +190,7 @@ export function resultsView(ctx: Ctx, onNewGame: () => void): HTMLElement {
               h(
                 'td',
                 { class: 'muted', style: 'font-size:12px' },
-                state.players[score.role].objective.name,
+                score.role === 'seller' ? '—' : state.players[score.role].objective.name,
               ),
               h('td', { class: 'num' }, `${score.total} / ${score.max}`),
             ),
@@ -200,7 +200,7 @@ export function resultsView(ctx: Ctx, onNewGame: () => void): HTMLElement {
       h(
         'p',
         { class: 'muted', style: 'margin-top:14px;font-size:12.5px' },
-        'Private objectives were hidden during play. The seller, banker and regulator were each pursuing their own — which is why their advice was never quite disinterested.',
+        'Private objectives were hidden during play. The banker and the regulator were each pursuing their own — which is why their advice was never quite disinterested. What the seller was actually playing for is not disclosed, and will not be.',
       ),
     ),
 

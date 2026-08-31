@@ -12,14 +12,14 @@ import { currentPrice, targetIntrinsic } from '../dist/src/engine/state.js';
 import { DILIGENCE_CATEGORIES } from '../dist/src/engine/types.js';
 
 // Three strategies, from careless to careful.
-const STRATEGIES = {
-  reckless: { screenAll: false, methods: ['comps'], bidAt: 'high', dp: 2, pushes: { reps: 1, mac: 1, indemnity: 1, conditions: 1 }, retrade: 0, marketDef: 'narrow', remedy: 'none', influence: 0 },
-  competent: { screenAll: true, methods: ['comps', 'precedent', 'dcf'], bidAt: 'mid', dp: 'full', pushes: { reps: 3, mac: 3, indemnity: 4, conditions: 3 }, retrade: 'justified', marketDef: 'standard', remedy: 'none', influence: 2 },
-  disciplined: { screenAll: true, methods: ['comps', 'precedent', 'dcf'], bidAt: 'low', dp: 'deep', pushes: { reps: 3, mac: 3, indemnity: 5, conditions: 3 }, retrade: 'justified', marketDef: 'broad', remedy: 'behavioral', influence: 3 },
+export const STRATEGIES = {
+  reckless: { provider: 'santa-barbara', screenAll: false, methods: ['comps'], bidAt: 'high', dp: 2, pushes: { reps: 1, mac: 1, indemnity: 1, conditions: 1 }, retrade: 0, marketDef: 'narrow', remedy: 'none', influence: 0 },
+  competent: { provider: 'santa-barbara', screenAll: true, methods: ['comps', 'precedent', 'dcf'], bidAt: 'mid', dp: 'full', pushes: { reps: 3, mac: 3, indemnity: 4, conditions: 3 }, retrade: 'justified', marketDef: 'standard', remedy: 'none', influence: 2 },
+  disciplined: { provider: 'monk', screenAll: true, methods: ['comps', 'precedent', 'dcf'], bidAt: 'low', dp: 'deep', pushes: { reps: 3, mac: 3, indemnity: 5, conditions: 3 }, retrade: 'justified', marketDef: 'broad', remedy: 'behavioral', influence: 3 },
 };
 
-function play(seed, scenarioId, strat) {
-  const s = createGame({ seed, scenarioId });
+export function play(seed, scenarioId, strat, tier) {
+  const s = createGame({ seed, scenarioId, difficulty: tier ?? DIFFICULTY });
   const act = (a) => applyAction(s, a);
   const targets = s.marketTargets;
 
@@ -76,7 +76,7 @@ function play(seed, scenarioId, strat) {
   } else {
     for (const c of DILIGENCE_CATEGORIES) { if (budget > 0) { alloc[c] = 1; budget -= 1; } if (budget <= 12 - strat.dp) break; }
   }
-  act({ type: 'allocate-diligence', allocation: alloc });
+  act({ type: 'allocate-diligence', allocation: alloc, provider: strat.provider ?? 'monk' });
   const justified = s.diligence.priceAdjustmentPct;
   act({ type: 'reprice', requestedCutPct: strat.retrade === 'justified' ? justified : 0, walk: false });
   if (s.status !== 'active') return s;
@@ -102,8 +102,12 @@ function play(seed, scenarioId, strat) {
   return s;
 }
 
+export const SCENARIOS_USED = ['friendly-merger', 'competitive-auction', 'leveraged-buyout', 'regulatory-gauntlet', 'broken-deal'];
+
+export const DIFFICULTY = process.env.TIER || 'red-flag';
 const scenarios = ['friendly-merger', 'competitive-auction', 'leveraged-buyout', 'regulatory-gauntlet', 'broken-deal'];
 const N = 120;
+if (import.meta.url === `file://${process.argv[1]}`) {
 console.log('strategy'.padEnd(13), 'mean'.padStart(7), 'median'.padStart(7), 'closed'.padStart(7), 'value+'.padStart(7), 'walked'.padStart(7));
 for (const [name, strat] of Object.entries(STRATEGIES)) {
   const totals = [];
@@ -127,4 +131,5 @@ for (const [name, strat] of Object.entries(STRATEGIES)) {
     `${((valueCreating / Math.max(1, closed)) * 100).toFixed(0)}%`.padStart(7),
     `${((walked / N) * 100).toFixed(0)}%`.padStart(7),
   );
+}
 }

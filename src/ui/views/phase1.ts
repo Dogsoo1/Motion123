@@ -1,6 +1,6 @@
 import { screeningFee, valuationCost } from '../../engine/game.js';
 import { latest, unaffectedEquityValue } from '../../engine/valuation.js';
-import { h, field, numberInput, panel } from '../dom.js';
+import { field, h, numberInput, panel, scrollTable } from '../dom.js';
 import { money, moneyExact, pct } from '../format.js';
 import { callout, errorLine, targetCardFront, type Ctx, draftValue, setDraft } from './common.js';
 
@@ -113,9 +113,7 @@ export function valuationView(ctx: Ctx): HTMLElement {
               null,
               'Pick the companies you consider genuinely comparable. The median EV/EBITDA of your selection drives the answer — which is why this is a judgment call, not arithmetic. Choose at least three.',
             ),
-            h(
-              'table',
-              null,
+            scrollTable(
               h(
                 'thead',
                 null,
@@ -186,9 +184,7 @@ export function valuationView(ctx: Ctx): HTMLElement {
               null,
               'Transaction multiples already contain a control premium, so this typically reads higher than trading comps. Pick at least two.',
             ),
-            h(
-              'table',
-              null,
+            scrollTable(
               h(
                 'thead',
                 null,

@@ -26,10 +26,13 @@ npm install     # typescript and @types/node only; the game itself has no depend
 npm start       # builds, then serves at http://localhost:8080 (PORT=8081 to change)
 npm test        # 30 tests covering the rules engine
 npm run balance # plays 360 games and reports whether skill is rewarded
+npm run bundle  # one self-contained HTML file in dist-single/, no server needed
 ```
 
-There is no bundler and no framework. `tsc` emits ES modules that the browser
-loads directly. All monetary figures are in £M — every company in `NAMING.md`
+There is no framework. `tsc` emits ES modules the browser loads directly during
+development; `npm run bundle` collapses the whole game — stylesheet, every
+module, all content — into a single self-contained HTML file you can host,
+email, or wrap in a native shell. All monetary figures are in £M — every company in `NAMING.md`
 is British, so the deals are struck in sterling.
 
 ## How a game goes

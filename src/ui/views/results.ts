@@ -1,7 +1,7 @@
 import { ROLE_NAMES } from '../../engine/types.js';
 import { currentPrice, targetIntrinsic, targetUnaffected } from '../../engine/state.js';
 import { premiumPct } from '../../engine/valuation.js';
-import { h, panel } from '../dom.js';
+import { h, panel, scrollTable } from '../dom.js';
 import { money, pct, signedPct } from '../format.js';
 import { callout, type Ctx } from './common.js';
 
@@ -69,9 +69,7 @@ export function resultsView(ctx: Ctx, onNewGame: () => void): HTMLElement {
       ? panel(
           'Indemnity Claims',
           'Where Phase 5 paid off — or did not',
-          h(
-            'table',
-            null,
+          scrollTable(
             h(
               'thead',
               null,
@@ -171,9 +169,7 @@ export function resultsView(ctx: Ctx, onNewGame: () => void): HTMLElement {
     panel(
       'The Table',
       'How everyone else did',
-      h(
-        'table',
-        null,
+      scrollTable(
         h(
           'thead',
           null,

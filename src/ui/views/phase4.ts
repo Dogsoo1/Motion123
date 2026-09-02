@@ -18,7 +18,7 @@ import type {
   StructuringDecision,
   TaxStructure,
 } from '../../engine/types.js';
-import { h, field, numberInput, panel, slider } from '../dom.js';
+import { field, h, numberInput, panel, scrollTable, slider } from '../dom.js';
 import { money, pct } from '../format.js';
 import { callout, errorLine, type Ctx, draftValue, setDraft } from './common.js';
 
@@ -153,9 +153,7 @@ export function structuringView(ctx: Ctx): HTMLElement {
         null,
         'Raise exactly the cash consideration. More leverage lifts returns and lowers your ability to survive a bad quarter.',
       ),
-      h(
-        'table',
-        null,
+      scrollTable(
         h(
           'thead',
           null,

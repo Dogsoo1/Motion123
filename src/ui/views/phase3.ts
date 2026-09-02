@@ -13,7 +13,7 @@ import { DILIGENCE_DEPTH_NAMES, DILIGENCE_CATEGORIES, DILIGENCE_CATEGORY_NAMES }
 import type { DiligenceCategory, DiligenceDepth } from '../../engine/types.js';
 import { emptyAllocation, totalAllocationCost } from '../../engine/diligence.js';
 import { currentPrice } from '../../engine/state.js';
-import { h, field, panel, slider } from '../dom.js';
+import { field, h, panel, scrollTable, slider } from '../dom.js';
 import { money, moneyExact, pct } from '../format.js';
 import { callout, errorLine, findingRow, type Ctx, draftValue, setDraft } from './common.js';
 
@@ -127,9 +127,7 @@ export function diligenceAllocationView(ctx: Ctx): HTMLElement {
           : callout(
               'The seller is releasing material on its own timetable. Standard practice, and standard reason for suspicion.',
             ),
-      h(
-        'table',
-        null,
+      scrollTable(
         h(
           'thead',
           null,

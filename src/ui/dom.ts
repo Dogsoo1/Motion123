@@ -90,6 +90,14 @@ export function segmented<T extends string>(
   );
 }
 
+/**
+ * Tables scroll inside their own container. The page body must never scroll
+ * sideways, which on a narrow viewport a dense table will otherwise force.
+ */
+export function scrollTable(...children: Child[]): HTMLElement {
+  return h('div', { class: 'table-scroll' }, h('table', null, ...children));
+}
+
 export function field(label: string, control: Child, hint?: string): HTMLElement {
   return h(
     'div',

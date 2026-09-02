@@ -1,5 +1,5 @@
 import { premiumPct } from '../../engine/valuation.js';
-import { h, field, numberInput, panel, segmented, slider } from '../dom.js';
+import { field, h, numberInput, panel, scrollTable, segmented, slider } from '../dom.js';
 import { money, pct } from '../format.js';
 import { callout, errorLine, type Ctx, draftValue, setDraft } from './common.js';
 import type { ConsiderationType, IndicationOfInterest, LoiTerms } from '../../engine/types.js';
@@ -165,9 +165,7 @@ export function loiView(ctx: Ctx): HTMLElement {
     panel(
       'Negotiation Record',
       `${state.loiRoundsRemaining} round${state.loiRoundsRemaining === 1 ? '' : 's'} remaining`,
-      h(
-        'table',
-        null,
+      scrollTable(
         h(
           'thead',
           null,
